@@ -3,12 +3,12 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <string.h>
-#include "vfs_test.h"
+#include "vfs_pc.h"
 
 #define FD(fp) ((int)(uintptr_t)(fp->ctx))
 
-static int8_t test_open(struct file *fp, const char *path,
-			uint8_t access)
+static int8_t
+pc_open(struct file *fp, const char *path, uint8_t access)
 {
 	int fd;
 	int acc = O_RDONLY;
@@ -27,12 +27,14 @@ static int8_t test_open(struct file *fp, const char *path,
 	return 0;
 }
 
-static void test_close(struct file *fp)
+static void
+pc_close(struct file *fp)
 {
 	close(FD(fp));
 }
 
-static int8_t test_read(struct file *fp, void *buf, uint16_t index)
+static int8_t
+pc_read(struct file *fp, void *buf, uint16_t index)
 {
 	ssize_t rv;
 	lseek(FD(fp), VFS_SECT_TO_OFFSET(index), SEEK_SET);
@@ -45,16 +47,17 @@ static int8_t test_read(struct file *fp, void *buf, uint16_t index)
 	return -1;
 }
 
-static int8_t test_write(struct file *fp, const void *buf, uint16_t index)
+static int8_t
+pc_write(struct file *fp, const void *buf, uint16_t index)
 {
 	lseek(FD(fp), VFS_SECT_TO_OFFSET(index), SEEK_SET);
 	return write(FD(fp), buf, VFS_SECT_SIZE) == VFS_SECT_SIZE? 0 : -1;
 }
 
-struct vfs test_vfs = {
-	.name = "unix",
-	.vopen = test_open,
-	.vclose = test_close,
-	.vread_sector = test_read,
-	.vwrite_sector = test_write,
+struct vfs pc_vfs = {
+	.name = "big pc",
+	.vopen = pc_open,
+	.vclose = pc_close,
+	.vread_sector = pc_read,
+	.vwrite_sector = pc_write,
 };

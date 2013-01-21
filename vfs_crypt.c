@@ -592,12 +592,12 @@ test_vfs_crypt(const struct vfs *meth)
 	printf("OK\n");
 }
 
-#include "vfs_test.h"
+#include "vfs_pc.h"
 int
 main(void)
 {
 	crypto_init();
-	test_vfs_crypt(&test_vfs);
+	test_vfs_crypt(&pc_vfs);
 	
 	return 0;
 }

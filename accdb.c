@@ -1836,7 +1836,7 @@ test_accdb_list(struct accdb *db)
 	assert(accdb_list_clear(db, head_save) == 0);
 }
 
-#include "vfs_test.h"
+#include "vfs_pc.h"
 
 int
 main(void)
@@ -1844,7 +1844,7 @@ main(void)
 	struct file fp;
 	struct accdb db;
 
-	if (vfs_open(&test_vfs, &fp, "test.db", VFS_RW) < 0)
+	if (vfs_open(&pc_vfs, &fp, "test.db", VFS_RW) < 0)
 		goto out;
 	accdb_open(&db, &fp);
 
