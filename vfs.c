@@ -25,3 +25,19 @@ vfs_write_sector(struct file *fp, const void *buf, size_t amt)
 {
 	return fp->vfs->vwrite_sector(fp, buf, amt);
 }
+
+uint16_t
+vfs_start_sector(struct file *fp)
+{
+	if (fp->vfs->vstart_sector)
+		return fp->vfs->vstart_sector(fp);
+	return 0;
+}
+
+uint16_t
+vfs_end_sector(struct file *fp)
+{
+	if (fp->vfs->vend_sector)
+		return fp->vfs->vend_sector(fp);
+	return 0xffff;
+}

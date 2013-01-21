@@ -22,8 +22,9 @@ struct vfs {
 	void (*vclose)(struct file *fp);
 	int8_t (*vread_sector)(struct file *fp, void *buf, uint16_t index);
 	int8_t (*vwrite_sector)(struct file *fp, const void *buf, uint16_t index);
-
-	//TODO: support enumerating dirs, encryption
+	uint16_t (*vstart_sector)(struct file *fp);
+	uint16_t (*vend_sector)(struct file *fp);
+	//TODO: support enumerating dirs
 };
 
 int8_t vfs_open(const struct vfs *methods, struct file *fp, const char *path,
@@ -31,5 +32,8 @@ int8_t vfs_open(const struct vfs *methods, struct file *fp, const char *path,
 void vfs_close(struct file *fp);
 int8_t vfs_read_sector(struct file *fp, void *buf, size_t amt);
 int8_t vfs_write_sector(struct file *fp, const void *buf, size_t amt);
+uint16_t vfs_start_sector(struct file *fp);
+uint16_t vfs_end_sector(struct file *fp);
+
 #endif // _VFS_H_
 
