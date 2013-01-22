@@ -37,7 +37,7 @@ struct crypt_file {
 #define PW_DIGEST_ITER_POS	96
 #define HEADER_LENGTH		98
 
-#ifdef VFS_CRYPT_DEBUG
+#ifdef DBGPRINT
 static const char *
 _hexdump(const void *k, size_t s)
 {

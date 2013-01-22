@@ -14,7 +14,7 @@ struct cipher {
 	const EVP_CIPHER *cipher;
 };
 
-static unsigned initialized = 0;
+static uint8_t initialized = 0;
 
 int8_t
 crypto_init(void)
