@@ -466,8 +466,8 @@ newest -\
 			  \- oldest
 			  <- LRU
 
-The strategy choice is stored in db->strategy.
-			
+The the replacement strategy is determined by db->strategy.
+
 */
 
 static inline void
