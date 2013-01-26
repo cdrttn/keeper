@@ -6,20 +6,37 @@
 #include "intop.h"
 #include "accdb.h"
 #include "vfs.h"
+#include "pool.h"
+
+struct accdb;
 
 struct sector {
 	uint8_t dirty:1;
 	uint8_t empty:1;
-	uint8_t scratch:1;
 	uint16_t refcount;
 	uint16_t sector;
-	uint8_t buf[VFS_SECT_SIZE];
+	uint8_t *buf;
+	struct sector *prev, *next;
 };
 
+enum cache_strategy {
+	CACHE_LRU,
+	CACHE_MRU
+};
 struct accdb {
 	struct file *fp;
+	struct pool *pool;
+	struct cleanup cleanup;
 #define ACCDB_CACHE_SIZE 8
+	uint8_t strategy:1;
+	uint8_t run_init:1;
 	struct sector cache[ACCDB_CACHE_SIZE];
+	struct sector *mru;
+	struct sector *lru;
+#ifdef CACHE_MEASURE
+	uint32_t cache_hits;
+	uint32_t cache_misses;
+#endif
 };
 
 struct accdb_index {
@@ -60,8 +77,7 @@ struct accdb_index {
 #define SECT_PER_BITMAP		(VFS_SECT_SIZE * 8)
 #define BITMAP_OFFSET_TO_SECT(bsect, bbyte, bit)	\
 	(bsect * SECT_PER_BITMAP + bbyte * 8 + bit)
-#define GET_SECTOR(b) \
-	((struct sector *)((b) - offsetof(struct sector, buf)))
+#define GET_SECTOR(b) ((struct sector *)USER_PTR(b))
 
 static inline void accdb_cache_dirty(uint8_t *buf);
 static inline uint16_t buf_get_size(const uint8_t *sector);
@@ -430,27 +446,166 @@ blob_rec_create(uint8_t *payload, uint8_t type, const void *data, size_t size)
 	return 0;
 }
 
+/*
+Cache
+
+ACCDB cache is a crude LRU and MRU system. Cache items are organized in a list.
+The most recently requested item is at the front, and the oldest item is
+at the end. The list may contain up to ACCDB_CACHE_MAX buffers.
+
+LRU replacement works by scaning the cache list back to front, looking for
+the first item that is not referenced. The item is either reused for
+a new sector of data and moved to the front of the list, or released
+back to the pool allocator if it wants us to free up some memory.
+
+MRU is just the reverse process.
+
+MRU ->
+newest -\
+	[0] [1] [2] [3] [4]
+			  \- oldest
+			  <- LRU
+
+The strategy choice is stored in db->strategy.
+			
+*/
+
+static inline void
+sector_list_pop(struct sector *s)
+{
+	if (s->prev) {
+		s->prev->next = s->next;
+	}
+	if (s->next) {
+		s->next->prev = s->prev;
+	}
+	s->prev = NULL;
+	s->next = NULL;
+}
+
+static void
+accdb_cache_init(struct accdb *db)
+{
+	size_t i;
+	struct sector *s, *prev = NULL;
+
+	db->run_init = 1;	
+	for (i = 0; i < ACCDB_CACHE_SIZE; ++i) {
+		s = &db->cache[i];
+		memset(s, 0, sizeof(*s));
+		if (prev)
+			prev->next = s;
+		s->prev = prev;
+		prev = s;
+
+		//attempt to preallocate a block from the pool
+		//it's not an error if we can't fill every cache
+		//slot; allocation can be attempted later.
+		s->buf = pool_allocate_block(db->pool, s);
+		s->empty = 1;
+	}
+	db->mru = &db->cache[0];
+	db->lru = &db->cache[ACCDB_CACHE_SIZE - 1];
+	db->run_init = 0;	
+
+#ifdef CACHE_MEASURE
+	db->cache_hits = db->cache_misses = 0;
+#endif
+}
+
+// find a spot in the cache going by the chosen strategy
+// if not all cache slots are allocated, attempt to allocate
+// a block to keep the cache as full as possible.
+static struct sector *
+accdb_cache_provision(struct accdb *db, uint8_t cleanup)
+{
+	struct sector *s;
+
+	// empty slots, if present, are at the end of the list
+	// attempt to fill one if we're not doing a cleanup
+	if (!cleanup) {
+		s = db->lru;
+		if (!s->buf && (s->buf = pool_allocate_block(db->pool, s))) {
+			s->empty = 1;
+			return s;
+		}
+	}
+
+	// can't allocate memory? attempt to reclaim a an item that
+	// has a buffer already
+	if (db->strategy == CACHE_LRU) {
+		for (s = db->lru; s != NULL; s = s->prev) {
+			if (s->refcount == 0 && s->buf) {
+				return s;
+			}
+		}
+	} else {
+		for (s = db->mru; s != NULL; s = s->next) {
+			if (s->refcount == 0 && s->buf) {
+				return s;
+			}
+		}
+	}
+
+	return NULL;
+}
+
+// move s to the head of the list at mru
+static inline void
+accdb_cache_mru(struct accdb *db, struct sector *s)
+{
+	if (s == db->mru)
+		return;
+	if (s == db->lru)
+		db->lru = s->prev;
+	sector_list_pop(s);
+	s->next = db->mru;
+	db->mru->prev = s;
+	db->mru = s;
+}
+
+// move s to the back of the list
+static inline void
+accdb_cache_lru(struct accdb *db, struct sector *s)
+{
+	if (s == db->lru)
+		return;
+	if (s == db->mru)
+		db->mru = s->next;
+	sector_list_pop(s);
+	s->prev = db->lru;
+	db->lru->next = s;
+	db->lru = s;
+}
+
 static void
 accdb_cache_print(struct accdb *db, int quiet)
 {
-	unsigned i;
+	struct sector *s;
 	int avail = 0;
 
+	printf("Order: MRU -> LRU\n");
 	printf("-------------------\n");
-	for (i = 0; i < ACCDB_CACHE_SIZE; ++i) {
+	for (s = db->mru; s; s = s->next) {
 		if (!quiet) {
-			printf("cache %u:\n", i);
-			printf(" dirty = %d\n", (int)db->cache[i].dirty);
-			printf(" empty = %d\n", (int)db->cache[i].empty);
-			printf(" scratch = %d\n", (int)db->cache[i].scratch);
-			printf(" refcount = %d\n", (int)db->cache[i].refcount);
-			printf(" sector = %d\n\n", (int)db->cache[i].sector);
+			printf("cache:\n");
+			printf(" dirty = %d\n", (int)s->dirty);
+			printf(" refcount = %d\n", (int)s->refcount);
+			printf(" sector = %d\n", (int)s->sector);
+			printf(" empty = %d\n", (int)s->empty);
+			printf(" buf = %p\n\n", s->buf);
 		}
-		if (!db->cache[i].refcount)
+		if (!s->refcount && s->buf)
 			avail++;
 	}
 	printf("available, %d/%d\n", avail, ACCDB_CACHE_SIZE);
 	printf("-------------------\n");
+#ifdef CACHE_MEASURE
+	printf("Total: %lu, Hits: %lu, Misses: %lu\n",
+	       (unsigned long)(db->cache_hits + db->cache_misses),
+	       (unsigned long)db->cache_hits,
+	       (unsigned long)db->cache_misses);
+#endif
 }
 
 static int8_t
@@ -459,11 +614,10 @@ accdb_cache_flush_one(struct accdb *db, struct sector *sector)
 	int8_t rv = 0;
 
 	if (sector->dirty) {
-		if (!sector->scratch) {
-			rv = vfs_write_sector(db->fp, sector->buf,
-					      sector->sector);
-			LOG(("WRITE %s\n", _s(sector->buf)));
-		}
+		assert(sector->buf != NULL);
+		rv = vfs_write_sector(db->fp, sector->buf,
+				      sector->sector);
+		LOG(("WRITE %s\n", _s(sector->buf)));
 		if (rv == 0)
 			sector->dirty = 0;
 	}
@@ -471,63 +625,66 @@ accdb_cache_flush_one(struct accdb *db, struct sector *sector)
 	return rv;
 }
 
-static uint8_t *
-accdb_cache_get(struct accdb *db, uint16_t sector)
+static void
+accdb_cache_do_cleanup(struct pool *pool, struct accdb *db)
 {
-	size_t i;
+	struct sector *s;
 
-	// is sector in cache?	
-	for (i = 0; i < ACCDB_CACHE_SIZE; ++i) {
-		if (db->cache[i].sector == sector &&
-		    db->cache[i].empty == 0 &&
-		    db->cache[i].scratch == 0) {
-			db->cache[i].refcount++;
-			LOG(("REF %s\n", _s(db->cache[i].buf)));
-			return db->cache[i].buf;
-		}	
+	if (db->run_init)
+		return;
+	
+	s = accdb_cache_provision(db, 1);
+	if (s) {
+		assert(s->buf);
+		LOG(("CLEANUP: %s\n", _s(s->buf)));
+		// XXX graceful way to handle error here?
+		if (accdb_cache_flush_one(db, GET_SECTOR(s->buf)) < 0)
+			return;
+		pool_deallocate_block(pool, s->buf);
+		s->buf = NULL;
+		s->empty = 1;
+		// keep unallocated cache entries at the back of the list
+		accdb_cache_lru(db, s);
 	}
-
-	// no. find a free spot and load from file.
-	// XXX change this to prefer unused slots ?
-	for (i = 0; i < ACCDB_CACHE_SIZE; ++i) {
-		if (db->cache[i].refcount == 0) {
-			if (accdb_cache_flush_one(db, &db->cache[i]) < 0)
-				return NULL;
-			if (vfs_read_sector(db->fp, db->cache[i].buf,
-				            sector) < 0)
-				return NULL;
-			db->cache[i].empty = 0;
-			db->cache[i].sector = sector;
-			db->cache[i].scratch = 0;
-			db->cache[i].refcount = 1;
-			LOG(("READ %s\n", _s(db->cache[i].buf)));
-			return db->cache[i].buf;
-		}
-	}
-
-	// no space in cache! out of memory!
-	return NULL;
 }
 
 static uint8_t *
-accdb_cache_get_scratch(struct accdb *db)
+accdb_cache_get(struct accdb *db, uint16_t sector)
 {
-	size_t i;
+	struct sector *s;
 
-	// find an unclaimed buffer for scratch space
-
-	for (i = 0; i < ACCDB_CACHE_SIZE; ++i) {
-		if (db->cache[i].refcount == 0) {
-			if (accdb_cache_flush_one(db, &db->cache[i]) < 0)
-				return NULL;
-			db->cache[i].empty = 0;
-			db->cache[i].sector = 0;
-			db->cache[i].scratch = 1;
-			db->cache[i].refcount = 1;
-			return db->cache[i].buf;
-		}
+	// is sector in cache?	
+	for (s = db->mru; s != NULL; s = s->next) {
+		if (s->sector == sector && s->buf && !s->empty) {
+			s->refcount++;
+			LOG(("REF %s\n", _s(s->buf)));
+			accdb_cache_mru(db, s);
+#ifdef CACHE_MEASURE
+			db->cache_hits++;
+#endif
+			return s->buf;
+		}	
 	}
 
+	// no. find a spot in the cache, and read sector.
+#ifdef CACHE_MEASURE
+	db->cache_misses++;
+#endif
+	s = accdb_cache_provision(db, 0);
+	if (s) {	
+		if (accdb_cache_flush_one(db, s) < 0)
+			return NULL;
+		if (vfs_read_sector(db->fp, s->buf, sector) < 0)
+			return NULL;
+		s->sector = sector;
+		s->refcount = 1;
+		s->empty = 0;
+		accdb_cache_mru(db, s);
+		LOG(("READ %s\n", _s(s->buf)));
+		return s->buf;
+	}
+
+	// no space in cache! out of memory!
 	return NULL;
 }
 
@@ -535,9 +692,11 @@ static int8_t
 accdb_cache_flush(struct accdb *db)
 {
 	size_t i;
-	
+	struct sector *s;
+
 	for (i = 0; i < ACCDB_CACHE_SIZE; ++i) {
-		if (accdb_cache_flush_one(db, &db->cache[i]) < 0)
+		s = &db->cache[i];
+		if (s->buf && accdb_cache_flush_one(db, s) < 0)
 			return -1;
 	}
 
@@ -553,9 +712,12 @@ accdb_cache_clear(struct accdb *db)
 		return -1;
 
 	for (i = 0; i < ACCDB_CACHE_SIZE; ++i) {
-		if (db->cache[i].refcount == 0) {
-			memset(&db->cache[i], 0, sizeof(struct sector));
-			db->cache[i].empty = 1;
+		struct sector *s = &db->cache[i];
+		if (s->refcount == 0) {
+			s->empty = 1;
+			if (s->buf)
+				memset(s->buf, 0, VFS_SECT_SIZE);
+			//pool_deallocate_block(db->pool, s->buf);
 		}
 	}
 
@@ -684,9 +846,7 @@ accdb_deallocate_buf(struct accdb *db, uint8_t *buf)
 	assert(s->refcount == 1);
 	s->dirty = 0;
 	accdb_cache_put(buf);
-	if (!s->scratch)
-		return accdb_deallocate_sector(db, s->sector);
-	return 0;
+	return accdb_deallocate_sector(db, s->sector);
 }
 
 static int8_t
@@ -1372,16 +1532,16 @@ accdb_del(struct accdb_index *idx)
 }
 
 int8_t
-accdb_open(struct accdb *db, struct file *fp)
+accdb_open(struct accdb *db, struct file *fp, struct pool *pool)
 {
-	size_t i;
-
 	db->fp = fp;
-	for (i = 0; i < ACCDB_CACHE_SIZE; ++i) {
-		memset(&db->cache[i], 0, sizeof(struct sector));
-		db->cache[i].empty = 1;
-	}
-
+	db->strategy = CACHE_LRU;
+	db->pool = pool;
+	db->cleanup.cb = (try_free_cb)accdb_cache_do_cleanup;
+	db->cleanup.arg = db;
+	pool_add_cleanup(pool, &db->cleanup);
+	accdb_cache_init(db);
+	
 	return 0;
 }
 
@@ -1398,7 +1558,7 @@ test_accdb(struct accdb *db)
 	const void *note;
 	size_t size;
 
-	bigbuf = (char*)accdb_cache_get_scratch(db);
+	bigbuf = (char*)pool_allocate_block(db->pool, NULL);
 	assert(bigbuf != NULL);
 
 	memset(&idx, 0, sizeof(struct accdb_index));
@@ -1576,7 +1736,7 @@ test_accdb(struct accdb *db)
 	}
 
 	accdb_index_clear(&idx);
-	accdb_cache_put((uint8_t *)bigbuf);
+	pool_deallocate_block(db->pool, (uint8_t *)bigbuf);
 }
 
 void
@@ -1629,11 +1789,12 @@ test_accdb_rec(struct accdb *db)
 void
 test_accdb_allocation(struct accdb *db)
 {
-	uint8_t *b[3], *scratch;
+	uint8_t *b[3];
 	uint16_t s[3];
 	struct sector *p;
 	unsigned i;
 
+#if 0
 	scratch = accdb_cache_get_scratch(db);
 	assert(scratch != NULL);
 	p = GET_SECTOR(scratch);
@@ -1642,6 +1803,7 @@ test_accdb_allocation(struct accdb *db)
 	assert(p->refcount == 1);
 	assert(p->scratch == 1);
 	assert(accdb_deallocate_buf(db, scratch) == 0);
+#endif
 
 	assert(accdb_cache_flush(db) == 0);
 
@@ -1652,9 +1814,7 @@ test_accdb_allocation(struct accdb *db)
 		p = GET_SECTOR(b[i]);
 		s[i] = p->sector;
 		assert(p->buf == b[i]);
-		assert(p->empty == 0);
 		assert(p->refcount == 1);
-		assert(p->scratch == 0);
 		printf("allocate 0x%x\n", s[i]);
 	}
 
@@ -1670,9 +1830,7 @@ test_accdb_allocation(struct accdb *db)
 		p = GET_SECTOR(b[i]);
 		assert(s[i] == p->sector);
 		assert(p->buf == b[i]);
-		assert(p->empty == 0);
 		assert(p->refcount == 1);
-		assert(p->scratch == 0);
 		printf("(2nd) allocate 0x%x\n", s[i]);
 	}
 
@@ -1691,13 +1849,13 @@ test_accdb_buffer(struct accdb *db)
 	uint8_t *b1, *b2, *b3;
 	size_t s1, s2, s3;
 
-	buf = accdb_cache_get_scratch(db);
+	buf = accdb_allocate_buf(db, SECT_TYPE_BLOB);
 	assert(buf != NULL);
-
-	buf_set_type_size(buf, SECT_TYPE_BLOB, 0);
 	assert(buf_get_type(buf) == SECT_TYPE_BLOB);
 	assert(buf_get_size(buf) == 0);
-
+#if 0
+	buf_set_type_size(buf, SECT_TYPE_BLOB, 0);
+#endif
 	s1 = strlen(a1);
 	s2 = strlen(a2);
 	s3 = strlen(a3);
@@ -1751,7 +1909,7 @@ test_accdb_buffer(struct accdb *db)
 	printf("4. payload (%u) '%.*s'\n", buf_get_size(buf), buf_get_size(buf), buf_get_payload(buf));
 	assert(buf_get_size(buf) == 0);
 	
-	accdb_cache_put(buf);
+	accdb_deallocate_buf(db, buf);
 }
 
 void
@@ -1836,22 +1994,82 @@ test_accdb_list(struct accdb *db)
 	assert(accdb_list_clear(db, head_save) == 0);
 }
 
+// run this on a freshly opened DB
+void
+test_accdb_cache_list(struct accdb *db)
+{
+	struct sector *s;
+	size_t i;
+
+	for (i = 0, s = db->mru; s; ++i, s = s->next) {
+		assert(i < ACCDB_CACHE_SIZE);
+		assert(&db->cache[i] == s);
+		assert(s->empty == 1);
+	}
+	assert(i == ACCDB_CACHE_SIZE);
+	for (i = 0, s = db->lru; s; ++i, s = s->prev) {
+		assert(i < ACCDB_CACHE_SIZE);
+		assert(s->empty == 1);
+	}
+	assert(i == ACCDB_CACHE_SIZE);
+	assert(&db->cache[i - 1] == db->lru);
+
+	accdb_cache_mru(db, &db->cache[2]);
+	for (i = 0, s = db->mru; s; ++i, s = s->next) {
+		assert(i < ACCDB_CACHE_SIZE);
+		assert(s->empty == 1);
+	}
+	assert(i == ACCDB_CACHE_SIZE);
+	for (i = 0, s = db->lru; s; ++i, s = s->prev) {
+		assert(i < ACCDB_CACHE_SIZE);
+		assert(s->empty == 1);
+	}
+	assert(i == ACCDB_CACHE_SIZE);
+	s = &db->cache[2];
+	assert(s->prev == NULL);
+	assert(db->mru == s);
+
+	accdb_cache_lru(db, &db->cache[3]);
+	for (i = 0, s = db->mru; s; ++i, s = s->next) {
+		assert(i < ACCDB_CACHE_SIZE);
+		assert(s->empty == 1);
+	}
+	assert(i == ACCDB_CACHE_SIZE);
+	for (i = 0, s = db->lru; s; ++i, s = s->prev) {
+		assert(i < ACCDB_CACHE_SIZE);
+		assert(s->empty == 1);
+	}
+	assert(i == ACCDB_CACHE_SIZE);
+	s = &db->cache[3];
+	assert(s->next == NULL);
+	assert(db->lru == s);
+}
+
 #include "vfs_pc.h"
 
+#define TEST_POOL_SZ (ACCDB_CACHE_SIZE + 2)
 int
 main(void)
 {
 	struct file fp;
 	struct accdb db;
+	struct pool *pool;
 
 	if (vfs_open(&pc_vfs, &fp, "test.db", VFS_RW) < 0)
 		goto out;
-	accdb_open(&db, &fp);
+	pool = pool_init(TEST_POOL_SZ);
+	assert(pool != NULL);
+	accdb_open(&db, &fp, pool);
+	//db.strategy = CACHE_MRU;
+
+	printf("\n\nCache list:\n");
+	test_accdb_cache_list(&db);
+	printf("OK\n");
 
 	if (accdb_format(&db) < 0)
 		goto out;
 
-	printf("\n\nIndex records:\n");
+	printf("\nIndex records:\n");
 	test_accdb_rec(&db);
 	printf("OK\n");
 
