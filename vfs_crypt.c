@@ -6,12 +6,14 @@
 #include "vfs.h"
 #include "vfs_crypt.h"
 #include "crypto.h"
+#include "pool.h"
 
 #define SECT_SIZE VFS_SECT_SIZE
 struct crypt_file {
 	struct file base;
 	struct cipher *cipher;
-	uint8_t tmp[SECT_SIZE]; // XXX extra 512 bytes could be bad on MCU
+	struct pool *pool;
+	uint8_t *buf;
 	uint8_t IV[KEEPER_IV_SIZE];
 	uint8_t key[KEEPER_KEY_SIZE];
 	uint8_t unlocked:1;
@@ -157,11 +159,11 @@ read_decrypt_sector_internal(struct file *fp, void *buf, uint16_t sector)
 {
 	int8_t rv;
 
-	if (vfs_read_sector(BASE(fp), CTX(fp)->tmp, sector) < 0)
+	if (vfs_read_sector(BASE(fp), CTX(fp)->buf, sector) < 0)
 		return -1;
 	set_iv_plain(fp, sector);
 	rv = crypto_cipher_sector(CTX(fp)->cipher, CTX(fp)->key,
-				  CTX(fp)->IV, C_DEC, CTX(fp)->tmp,
+				  CTX(fp)->IV, C_DEC, CTX(fp)->buf,
 				  buf);
 	if (rv < 0)
 		return -1;
@@ -177,10 +179,10 @@ write_encrypt_sector_internal(struct file *fp, const void *buf, uint16_t sector)
 	set_iv_plain(fp, sector);
 	rv = crypto_cipher_sector(CTX(fp)->cipher, CTX(fp)->key,
 				  CTX(fp)->IV, C_ENC, buf,
-				  CTX(fp)->tmp);
+				  CTX(fp)->buf);
 	if (rv < 0)
 		return -1;
-	if (vfs_write_sector(BASE(fp), CTX(fp)->tmp, sector) < 0)
+	if (vfs_write_sector(BASE(fp), CTX(fp)->buf, sector) < 0)
 		return -1;
 
 	return 0;
@@ -194,10 +196,12 @@ vfs_crypt_format(struct file *fp, const void *password, size_t len)
 	uint8_t key[KEEPER_KEY_SIZE];
 	uint8_t userkey[KEEPER_KEY_SIZE];
 	uint8_t digest[PW_DIGEST_SIZE];
-	uint8_t buf[SECT_SIZE]; // XXX too much stack usage??
+	uint8_t *buf;
 	int8_t rv = 0;
 
-	memset(buf, 0, SECT_SIZE);
+	buf = pool_allocate_block(ctx->pool, NULL);
+	if (buf == NULL)
+		return -1;
 	header_add_magic(buf);
 	header_set_version(buf, VERSION);
 
@@ -256,9 +260,9 @@ out:
 	// XXX keep file unlocked at this point?
 	if (rv < 0)
 		memset(ctx->key, 0, KEEPER_KEY_SIZE);
-	memset(buf, 0, SECT_SIZE);
 	memset(userkey, 0, sizeof(userkey));
 	memset(key, 0, sizeof(key));
+	pool_deallocate_block(ctx->pool, buf);
 
 	return rv;
 }
@@ -273,8 +277,12 @@ vfs_crypt_unlock(struct file *fp, const void *password, size_t len)
 	uint8_t mksalt[PW_SALT_SIZE];
 	uint8_t usersalt[PW_SALT_SIZE];
 	uint8_t userkey[KEEPER_KEY_SIZE];
-	uint8_t buf[SECT_SIZE]; // XXX too much stack usage??
+	uint8_t *buf;
 	uint16_t mkiter, useriter;
+
+	buf = pool_allocate_block(ctx->pool, NULL);
+	if (buf == NULL)
+		return -1;
 
 	// read header, preform sanity checks
 	rv = vfs_read_sector(BASE(fp), buf, 0);
@@ -330,7 +338,7 @@ out:
 	if (rv < 0)
 		memset(ctx->key, 0, KEEPER_KEY_SIZE);
 	memset(userkey, 0, sizeof(userkey));
-	memset(buf, 0, sizeof(buf));
+	pool_deallocate_block(ctx->pool, buf);
 
 	return rv;
 }
@@ -343,10 +351,14 @@ vfs_crypt_chpass(struct file *fp, const void *newpw, size_t len)
 	uint8_t salt[PW_SALT_SIZE];
 	uint8_t key[KEEPER_KEY_SIZE];
 	uint8_t userkey[KEEPER_KEY_SIZE];
-	uint8_t buf[SECT_SIZE];
+	uint8_t *buf;
 	int8_t rv;
 
 	if (!ctx->unlocked)
+		return -1;
+
+	buf = pool_allocate_block(ctx->pool, NULL);
+	if (buf == NULL)
 		return -1;
 
 	// create key for new pw
@@ -384,7 +396,7 @@ vfs_crypt_chpass(struct file *fp, const void *newpw, size_t len)
 
 out:
 	memset(key, 0, sizeof(key));
-	memset(buf, 0, SECT_SIZE);
+	pool_deallocate_block(ctx->pool, buf);
 	
 	return rv;
 }
@@ -439,7 +451,7 @@ struct vfs crypto_vfs = {
 };
 
 int8_t
-vfs_crypt_init(struct file *base)
+vfs_crypt_init(struct file *base, struct pool *pool)
 {
 	struct crypt_file *crypt;
 
@@ -451,6 +463,11 @@ vfs_crypt_init(struct file *base)
 	if (crypt->cipher == NULL)
 		goto out;
 
+	crypt->buf = pool_allocate_block(pool, NULL);
+	if (crypt->buf == NULL)
+		goto out;
+
+	crypt->pool = pool;
 	crypt->base = *base;
 	base->vfs = &crypto_vfs;
 	base->ctx = crypt;
@@ -459,6 +476,8 @@ vfs_crypt_init(struct file *base)
 	return 0;
 
 out:
+	if (crypt->buf)
+		pool_deallocate_block(pool, crypt->buf);
 	if (crypt->cipher)
 		crypto_cipher_free(crypt->cipher);
 	free(crypt);
@@ -473,15 +492,17 @@ out:
 #define TEST_N_PW_LEN 15
 #define TEST_SECT_COUNT 8
 void
-test_vfs_crypt_format(const struct vfs *meth)
+test_vfs_crypt_format(const struct vfs *meth, struct pool *p)
 {
 	struct file f;
-	uint8_t buf[SECT_SIZE];
+	uint8_t *buf;
 	uint16_t start;
 	uint8_t count;
-	
+
+	buf = pool_allocate_block(p, NULL);
+	assert(buf != NULL);	
 	assert(vfs_open(meth, &f, TEST_FN, VFS_RW) == 0);
-	assert(vfs_crypt_init(&f) == 0);	
+	assert(vfs_crypt_init(&f, p) == 0);	
 	assert(vfs_crypt_format(&f, TEST_PW, TEST_PW_LEN) == 0);
 
 	start = vfs_start_sector(&f); 
@@ -491,18 +512,21 @@ test_vfs_crypt_format(const struct vfs *meth)
 	}
 
 	vfs_close(&f);
+	pool_deallocate_block(p, buf);
 }
 
 void
-test_vfs_crypt_unlock(const struct vfs *meth)
+test_vfs_crypt_unlock(const struct vfs *meth, struct pool *pool)
 {
 	struct file f;
-	uint8_t buf[SECT_SIZE];
+	uint8_t *buf;
 	uint16_t start;
 	uint8_t count;
 
+	buf = pool_allocate_block(pool, NULL);
+	assert(buf != NULL);
 	assert(vfs_open(meth, &f, TEST_FN, VFS_RW) == 0);
-	assert(vfs_crypt_init(&f) == 0);	
+	assert(vfs_crypt_init(&f, pool) == 0);	
 	assert(vfs_crypt_unlock(&f, TEST_PW, TEST_PW_LEN) == 0);
 
 	start = vfs_start_sector(&f); 
@@ -514,35 +538,39 @@ test_vfs_crypt_unlock(const struct vfs *meth)
 	}
 
 	vfs_close(&f);
+	pool_deallocate_block(pool, buf);
 }
 
 void
-test_vfs_crypt_chpass(const struct vfs *meth)
+test_vfs_crypt_chpass(const struct vfs *meth, struct pool *p)
 {
 	struct file f;
 
 	assert(vfs_open(meth, &f, TEST_FN, VFS_RW) == 0);
-	assert(vfs_crypt_init(&f) == 0);	
+	assert(vfs_crypt_init(&f, p) == 0);	
 	assert(vfs_crypt_unlock(&f, TEST_PW, TEST_PW_LEN) == 0);
 	assert(vfs_crypt_chpass(&f, TEST_N_PW, TEST_N_PW_LEN) == 0);
 	vfs_close(&f);
 
 	assert(vfs_open(meth, &f, TEST_FN, VFS_RW) == 0);
-	assert(vfs_crypt_init(&f) == 0);	
+	assert(vfs_crypt_init(&f, p) == 0);	
 	assert(vfs_crypt_unlock(&f, TEST_N_PW, TEST_N_PW_LEN) == 0);
 	vfs_close(&f);
 }
 
 void
-test_vfs_crypt_header(void)
+test_vfs_crypt_header(struct pool *pool)
 {
-	uint8_t buf[SECT_SIZE];
+	uint8_t *buf;
 	uint8_t digest[PW_DIGEST_SIZE];
 	uint8_t salt1[PW_SALT_SIZE];
 	uint8_t salt2[PW_SALT_SIZE];
 	uint16_t iter1 = 0xdead;
 	uint16_t iter2 = 0xb33f;
 	unsigned i;
+
+	buf = pool_allocate_block(pool, NULL);
+	assert(buf);
 
 	memset(buf, 0, sizeof(buf));
 	memset(digest, 'D', sizeof(digest));
@@ -569,26 +597,28 @@ test_vfs_crypt_header(void)
 
 	for (i = HEADER_LENGTH; i < SECT_SIZE; ++i) {
 		assert(buf[i] == 0x00);
-	}	
+	}
+
+	pool_deallocate_block(pool, buf);
 }
 
 void
-test_vfs_crypt(const struct vfs *meth)
+test_vfs_crypt(const struct vfs *meth, struct pool *p)
 {
 	printf("Header:\n");
-	test_vfs_crypt_header();
+	test_vfs_crypt_header(p);
 	printf("OK\n");
 
 	printf("Format:\n");
-	test_vfs_crypt_format(meth);
+	test_vfs_crypt_format(meth, p);
 	printf("OK\n");
 
 	printf("Unlock:\n");
-	test_vfs_crypt_unlock(meth);
+	test_vfs_crypt_unlock(meth, p);
 	printf("OK\n");
 
 	printf("Chpass:\n");
-	test_vfs_crypt_chpass(meth);
+	test_vfs_crypt_chpass(meth, p);
 	printf("OK\n");
 }
 
@@ -596,8 +626,12 @@ test_vfs_crypt(const struct vfs *meth)
 int
 main(void)
 {
+	struct pool *p;
+
+	p = pool_init(8);
+	assert(p);
 	crypto_init();
-	test_vfs_crypt(&pc_vfs);
+	test_vfs_crypt(&pc_vfs, p);
 	
 	return 0;
 }
