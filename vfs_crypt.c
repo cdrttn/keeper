@@ -406,6 +406,7 @@ vfs_crypt_close(struct file *fp)
 {
 	vfs_close(BASE(fp));
 	crypto_cipher_free(CTX(fp)->cipher);
+	pool_deallocate_block(CTX(fp)->pool, CTX(fp)->buf);
 	memset(CTX(fp), 0, sizeof(struct crypt_file));
 	free(CTX(fp));
 }
