@@ -6,6 +6,7 @@
 #include <openssl/rand.h>
 #include "crypto.h"
 #include "vfs.h"
+#include "test.h"
 
 #define SECT_SIZE VFS_SECT_SIZE
 
@@ -125,13 +126,13 @@ test_crypto(void)
 	memset(key, 'X', sizeof(key));
 	memset(iv, 'Y', sizeof(iv));
 
-	assert(crypto_init() == 0);
-	assert((cipher = crypto_cipher_init()) != NULL);
-	assert(crypto_cipher_sector(cipher, key, iv, C_ENC, orig, buf) == 0);
-	assert(crypto_cipher_sector(cipher, key, iv, C_DEC, buf, tmp) == 0);
-	assert(memcmp(orig, tmp, SECT_SIZE) == 0);
-	assert(crypto_get_rand_bytes(salt, sizeof(salt)) == 0);
-	assert(crypto_pbkdf2_sha1(key, sizeof(key), salt, sizeof(salt), digest, sizeof(digest), 100) == 0);
+	v_assert(crypto_init() == 0);
+	v_assert((cipher = crypto_cipher_init()) != NULL);
+	v_assert(crypto_cipher_sector(cipher, key, iv, C_ENC, orig, buf) == 0);
+	v_assert(crypto_cipher_sector(cipher, key, iv, C_DEC, buf, tmp) == 0);
+	v_assert(memcmp(orig, tmp, SECT_SIZE) == 0);
+	v_assert(crypto_get_rand_bytes(salt, sizeof(salt)) == 0);
+	v_assert(crypto_pbkdf2_sha1(key, sizeof(key), salt, sizeof(salt), digest, sizeof(digest), 100) == 0);
 	for (i = 0; i < sizeof(digest); ++i)
 		fprintf(stderr, "%02x", digest[i]);
 	fprintf(stderr, "\n");

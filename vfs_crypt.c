@@ -7,6 +7,7 @@
 #include "vfs_crypt.h"
 #include "crypto.h"
 #include "pool.h"
+#include "test.h"
 
 #define SECT_SIZE VFS_SECT_SIZE
 struct crypt_file {
@@ -501,15 +502,15 @@ test_vfs_crypt_format(const struct vfs *meth, struct pool *p)
 	uint8_t count;
 
 	buf = pool_allocate_block(p, NULL);
-	assert(buf != NULL);	
-	assert(vfs_open(meth, &f, TEST_FN, VFS_RW) == 0);
-	assert(vfs_crypt_init(&f, p) == 0);	
-	assert(vfs_crypt_format(&f, TEST_PW, TEST_PW_LEN) == 0);
+	v_assert(buf != NULL);	
+	v_assert(vfs_open(meth, &f, TEST_FN, VFS_RW) == 0);
+	v_assert(vfs_crypt_init(&f, p) == 0);	
+	v_assert(vfs_crypt_format(&f, TEST_PW, TEST_PW_LEN) == 0);
 
 	start = vfs_start_sector(&f); 
 	for (count = 0; count < TEST_SECT_COUNT; ++count) {
 		memset(buf, count, sizeof(buf));
-		assert(vfs_write_sector(&f, buf, start + count) == 0);
+		v_assert(vfs_write_sector(&f, buf, start + count) == 0);
 	}
 
 	vfs_close(&f);
@@ -525,17 +526,17 @@ test_vfs_crypt_unlock(const struct vfs *meth, struct pool *pool)
 	uint8_t count;
 
 	buf = pool_allocate_block(pool, NULL);
-	assert(buf != NULL);
-	assert(vfs_open(meth, &f, TEST_FN, VFS_RW) == 0);
-	assert(vfs_crypt_init(&f, pool) == 0);	
-	assert(vfs_crypt_unlock(&f, TEST_PW, TEST_PW_LEN) == 0);
+	v_assert(buf != NULL);
+	v_assert(vfs_open(meth, &f, TEST_FN, VFS_RW) == 0);
+	v_assert(vfs_crypt_init(&f, pool) == 0);	
+	v_assert(vfs_crypt_unlock(&f, TEST_PW, TEST_PW_LEN) == 0);
 
 	start = vfs_start_sector(&f); 
 	for (count = 0; count < TEST_SECT_COUNT; ++count) {
 		unsigned i;
-		assert(vfs_read_sector(&f, buf, start + count) == 0);
+		v_assert(vfs_read_sector(&f, buf, start + count) == 0);
 		for (i = 0; i < sizeof(buf); ++i)
-			assert(buf[i] == count);
+			v_assert(buf[i] == count);
 	}
 
 	vfs_close(&f);
@@ -547,15 +548,15 @@ test_vfs_crypt_chpass(const struct vfs *meth, struct pool *p)
 {
 	struct file f;
 
-	assert(vfs_open(meth, &f, TEST_FN, VFS_RW) == 0);
-	assert(vfs_crypt_init(&f, p) == 0);	
-	assert(vfs_crypt_unlock(&f, TEST_PW, TEST_PW_LEN) == 0);
-	assert(vfs_crypt_chpass(&f, TEST_N_PW, TEST_N_PW_LEN) == 0);
+	v_assert(vfs_open(meth, &f, TEST_FN, VFS_RW) == 0);
+	v_assert(vfs_crypt_init(&f, p) == 0);	
+	v_assert(vfs_crypt_unlock(&f, TEST_PW, TEST_PW_LEN) == 0);
+	v_assert(vfs_crypt_chpass(&f, TEST_N_PW, TEST_N_PW_LEN) == 0);
 	vfs_close(&f);
 
-	assert(vfs_open(meth, &f, TEST_FN, VFS_RW) == 0);
-	assert(vfs_crypt_init(&f, p) == 0);	
-	assert(vfs_crypt_unlock(&f, TEST_N_PW, TEST_N_PW_LEN) == 0);
+	v_assert(vfs_open(meth, &f, TEST_FN, VFS_RW) == 0);
+	v_assert(vfs_crypt_init(&f, p) == 0);	
+	v_assert(vfs_crypt_unlock(&f, TEST_N_PW, TEST_N_PW_LEN) == 0);
 	vfs_close(&f);
 }
 
@@ -571,7 +572,7 @@ test_vfs_crypt_header(struct pool *pool)
 	unsigned i;
 
 	buf = pool_allocate_block(pool, NULL);
-	assert(buf);
+	v_assert(buf);
 
 	memset(buf, 0, sizeof(buf));
 	memset(digest, 'D', sizeof(digest));
@@ -588,23 +589,23 @@ test_vfs_crypt_header(struct pool *pool)
 	header_set_password_salt(buf, salt2);
 	header_set_password_iterations(buf, iter2);
 
-	assert(header_check_magic(buf) == 1);
-	assert(header_get_version(buf) == VERSION);
-	assert(memcmp(header_get_master_key_digest(buf), digest, sizeof(digest)) == 0);
-	assert(memcmp(header_get_master_key_digest_salt(buf), salt1, sizeof(salt1)) == 0);
-	assert(header_get_master_key_digest_iterations(buf) == iter1);
-	assert(memcmp(header_get_password_salt(buf), salt2, sizeof(salt2)) == 0);
-	assert(header_get_password_iterations(buf) == iter2);
+	v_assert(header_check_magic(buf) == 1);
+	v_assert(header_get_version(buf) == VERSION);
+	v_assert(memcmp(header_get_master_key_digest(buf), digest, sizeof(digest)) == 0);
+	v_assert(memcmp(header_get_master_key_digest_salt(buf), salt1, sizeof(salt1)) == 0);
+	v_assert(header_get_master_key_digest_iterations(buf) == iter1);
+	v_assert(memcmp(header_get_password_salt(buf), salt2, sizeof(salt2)) == 0);
+	v_assert(header_get_password_iterations(buf) == iter2);
 
 	for (i = HEADER_LENGTH; i < SECT_SIZE; ++i) {
-		assert(buf[i] == 0x00);
+		v_assert(buf[i] == 0x00);
 	}
 
 	pool_deallocate_block(pool, buf);
 }
 
 void
-test_vfs_crypt(const struct vfs *meth, struct pool *p)
+test_vfs_crypt_run_all(const struct vfs *meth, struct pool *p)
 {
 	printf("Header:\n");
 	test_vfs_crypt_header(p);
@@ -631,7 +632,7 @@ main(void)
 	struct pool *p;
 
 	p = pool_init(8);
-	assert(p);
+	v_assert(p);
 	crypto_init();
 	test_vfs_crypt(&pc_vfs, p);
 	

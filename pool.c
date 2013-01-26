@@ -3,6 +3,7 @@
 #include <string.h>
 #include <assert.h>
 #include "pool.h"
+#include "test.h"
 
 struct pool *
 pool_init(uint16_t amt)
@@ -139,24 +140,24 @@ test_pool(void)
 	};
 
 	pool = pool_init(TEST_POOL_SZ);
-	assert(pool != NULL);
-	assert(pool->total == TEST_POOL_SZ);
-	assert(pool->nallocated == 0);
+	v_assert(pool != NULL);
+	v_assert(pool->total == TEST_POOL_SZ);
+	v_assert(pool->nallocated == 0);
 
 	// test cleanup add/del
 	pool_add_cleanup(pool, &c1);
-	assert(pool->cleanup == &c1);
+	v_assert(pool->cleanup == &c1);
 	pool_add_cleanup(pool, &c2);
-	assert(pool->cleanup == &c2);
-	assert(pool->cleanup->next == &c1);
+	v_assert(pool->cleanup == &c2);
+	v_assert(pool->cleanup->next == &c1);
 	pool_add_cleanup(pool, &c3);
-	assert(pool->cleanup == &c3);
-	assert(pool->cleanup->next == &c2);
+	v_assert(pool->cleanup == &c3);
+	v_assert(pool->cleanup->next == &c2);
 
 	pool_del_cleanup(pool, &c1);
 	pool_del_cleanup(pool, &c2);
 	pool_del_cleanup(pool, &c3);
-	assert(pool->cleanup == NULL);
+	v_assert(pool->cleanup == NULL);
 
 	// add the real one
 	pool_add_cleanup(pool, &clean);
@@ -164,45 +165,42 @@ test_pool(void)
 	for (i = 0; i < TEST_POOL_SZ; ++i) {
 		void *n = (void*)(uintptr_t)i;
 		buf[i] = pool_allocate_block(pool, n);
-		assert(buf[i] != NULL);
-		assert(BLOCK(buf[i])->allocated == 1);
-		assert(USER_PTR(buf[i]) == n);
-		assert(test_block_is_zero(buf[i]) == 1);
+		v_assert(buf[i] != NULL);
+		v_assert(BLOCK(buf[i])->allocated == 1);
+		v_assert(USER_PTR(buf[i]) == n);
+		v_assert(test_block_is_zero(buf[i]) == 1);
 		memset(buf[i], i, VFS_SECT_SIZE);
 	}
-	assert(pool->nallocated == pool->total);
+	v_assert(pool->nallocated == pool->total);
 
 	// cleanup should free back the first half
 	for (i = 0; i < TEST_POOL_SZ/2; ++i) {
 		uint8_t *b;
 		void *n = (void*)(uintptr_t)i;
 		b = pool_allocate_block(pool, n);
-		assert(b != NULL);
-		assert(BLOCK(b)->allocated == 1);
-		assert(USER_PTR(b) == n);
-		assert(b == buf[i]);
-		assert(test_block_is_zero(b) == 1);
+		v_assert(b != NULL);
+		v_assert(BLOCK(b)->allocated == 1);
+		v_assert(USER_PTR(b) == n);
+		v_assert(b == buf[i]);
+		v_assert(test_block_is_zero(b) == 1);
 	}
-	assert(pool->nallocated == pool->total);
+	v_assert(pool->nallocated == pool->total);
 
-	assert(pool_allocate_block(pool, NULL) == NULL);
+	v_assert(pool_allocate_block(pool, NULL) == NULL);
 
 	for (i = 0; i < TEST_POOL_SZ; ++i) {
 		pool_deallocate_block(pool, buf[i]);
-		assert(BLOCK(buf[i])->allocated == 0);
+		v_assert(BLOCK(buf[i])->allocated == 0);
 	}
-	assert(pool->nallocated == 0);
+	v_assert(pool->nallocated == 0);
 
 	pool_free(pool);
 }
 
-#if 0
-int main(void)
+void
+test_pool_run_all(void)
 {
 	printf("Pool:\n");
 	test_pool();
 	printf("OK\n");
-	
-	return 0;
 }
-#endif

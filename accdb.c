@@ -7,6 +7,7 @@
 #include "accdb.h"
 #include "vfs.h"
 #include "pool.h"
+#include "test.h"
 
 struct accdb;
 
@@ -1593,7 +1594,7 @@ test_accdb(struct accdb *db)
 	size_t size;
 
 	bigbuf = (char*)pool_allocate_block(db->pool, NULL);
-	assert(bigbuf != NULL);
+	v_assert(bigbuf != NULL);
 
 	memset(&idx, 0, sizeof(struct accdb_index));
 	
@@ -1601,172 +1602,172 @@ test_accdb(struct accdb *db)
 		sprintf(brief, "BRIEF%u", (unsigned)i);
 		sprintf(user, "USER%u", (unsigned)i);
 		sprintf(pass, "PASS%u", (unsigned)i);
-		assert(accdb_add(db, &idx, brief, user, pass) == 0);
-		assert(accdb_index_get_entry(&idx, &briefp, &userp, &passp) == 0);
-		assert(strcmp(brief, briefp) == 0);
-		assert(strcmp(user, userp) == 0);
-		assert(strcmp(pass, passp) == 0);
+		v_assert(accdb_add(db, &idx, brief, user, pass) == 0);
+		v_assert(accdb_index_get_entry(&idx, &briefp, &userp, &passp) == 0);
+		v_assert(strcmp(brief, briefp) == 0);
+		v_assert(strcmp(user, userp) == 0);
+		v_assert(strcmp(pass, passp) == 0);
 		//accdb_cache_print(db, 1);
 	}
 
-	assert(accdb_index_init(db, &idx) == 0);
+	v_assert(accdb_index_init(db, &idx) == 0);
 
 	i = 0;
 	while (accdb_index_has_entry(&idx)) {
 		sprintf(brief, "BRIEF%u", (unsigned)i);
 		sprintf(user, "USER%u", (unsigned)i);
 		sprintf(pass, "PASS%u", (unsigned)i);
-		assert(accdb_index_get_entry(&idx, &briefp, &userp, &passp) == 0);
+		v_assert(accdb_index_get_entry(&idx, &briefp, &userp, &passp) == 0);
 		//printf("%s, %s, %s\n", briefp, userp, passp);
-		assert(strcmp(brief, briefp) == 0);
-		assert(strcmp(user, userp) == 0);
-		assert(strcmp(pass, passp) == 0);
-		assert(accdb_index_next(&idx) == 0);
+		v_assert(strcmp(brief, briefp) == 0);
+		v_assert(strcmp(user, userp) == 0);
+		v_assert(strcmp(pass, passp) == 0);
+		v_assert(accdb_index_next(&idx) == 0);
 		++i;
 	}
-	assert(i == 128);
+	v_assert(i == 128);
 
 	i = 128;
-	assert(accdb_index_prev(&idx) == 0);
+	v_assert(accdb_index_prev(&idx) == 0);
 	while (accdb_index_has_entry(&idx)) {
-		assert(i > 0);
+		v_assert(i > 0);
 		--i;
 		sprintf(brief, "BRIEF%u", (unsigned)i);
 		sprintf(user, "USER%u", (unsigned)i);
 		sprintf(pass, "PASS%u", (unsigned)i);
-		assert(accdb_index_get_entry(&idx, &briefp, &userp, &passp) == 0);
+		v_assert(accdb_index_get_entry(&idx, &briefp, &userp, &passp) == 0);
 		//printf("%s, %s, %s\n", briefp, userp, passp);
-		assert(strcmp(brief, briefp) == 0);
-		assert(strcmp(user, userp) == 0);
-		assert(strcmp(pass, passp) == 0);
-		assert(accdb_index_prev(&idx) == 0);
+		v_assert(strcmp(brief, briefp) == 0);
+		v_assert(strcmp(user, userp) == 0);
+		v_assert(strcmp(pass, passp) == 0);
+		v_assert(accdb_index_prev(&idx) == 0);
 	}
-	assert(i == 0);
+	v_assert(i == 0);
 
-	assert(accdb_index_init(db, &idx) == 0);
+	v_assert(accdb_index_init(db, &idx) == 0);
 
 	i = 0;
 	while (accdb_index_has_entry(&idx)) {
-		assert(accdb_del(&idx) == 0);
+		v_assert(accdb_del(&idx) == 0);
 		if (++i == 64)
 			break;
 	}
-	assert(accdb_index_init(db, &idx) == 0);
+	v_assert(accdb_index_init(db, &idx) == 0);
 	while (accdb_index_has_entry(&idx)) {
 		sprintf(brief, "BRIEF%u", (unsigned)i);
 		sprintf(user, "USER%u", (unsigned)i);
 		sprintf(pass, "PASS%u", (unsigned)i);
-		assert(accdb_index_get_entry(&idx, &briefp, &userp, &passp) == 0);
+		v_assert(accdb_index_get_entry(&idx, &briefp, &userp, &passp) == 0);
 		//printf("%s, %s, %s\n", briefp, userp, passp);
-		assert(strcmp(brief, briefp) == 0);
-		assert(strcmp(user, userp) == 0);
-		assert(strcmp(pass, passp) == 0);
-		assert(accdb_index_next(&idx) == 0);
+		v_assert(strcmp(brief, briefp) == 0);
+		v_assert(strcmp(user, userp) == 0);
+		v_assert(strcmp(pass, passp) == 0);
+		v_assert(accdb_index_next(&idx) == 0);
 		++i;
 	}
-	assert(i == 128);
+	v_assert(i == 128);
 
-	assert(accdb_index_prev(&idx) == 0);
-	assert(accdb_del(&idx) == 0);
-	assert(accdb_index_prev(&idx) == 0);
-	assert(accdb_index_get_entry(&idx, &briefp, &userp, &passp) == 0);
+	v_assert(accdb_index_prev(&idx) == 0);
+	v_assert(accdb_del(&idx) == 0);
+	v_assert(accdb_index_prev(&idx) == 0);
+	v_assert(accdb_index_get_entry(&idx, &briefp, &userp, &passp) == 0);
 	//printf("%s, %s, %s\n", briefp, userp, passp);
 
 	memset(bigbuf, 'B', REC_BLOB_ENTRY_MAX);
-	assert(accdb_index_init(db, &idx) == 0);
-	assert(accdb_add_note(&idx, bigbuf, REC_BLOB_ENTRY_MAX) == 0);
-	assert(accdb_add_note(&idx, bigbuf, 130) == 0);
-	assert(accdb_add_note(&idx, bigbuf, 20) == 0);
-	assert(accdb_add_note(&idx, bigbuf, REC_BLOB_ENTRY_MAX) == 0);
+	v_assert(accdb_index_init(db, &idx) == 0);
+	v_assert(accdb_add_note(&idx, bigbuf, REC_BLOB_ENTRY_MAX) == 0);
+	v_assert(accdb_add_note(&idx, bigbuf, 130) == 0);
+	v_assert(accdb_add_note(&idx, bigbuf, 20) == 0);
+	v_assert(accdb_add_note(&idx, bigbuf, REC_BLOB_ENTRY_MAX) == 0);
 	
-	assert(accdb_index_init(db, &idx) == 0);
+	v_assert(accdb_index_init(db, &idx) == 0);
 	i = 64;
 	while (accdb_index_has_entry(&idx)) {
 		sprintf(brief, "BRIEF%u", (unsigned)i);
 		sprintf(user, "USER%u", (unsigned)i);
 		sprintf(pass, "PASS%u", (unsigned)i);
-		assert(accdb_index_get_entry(&idx, &briefp, &userp, &passp) == 0);
+		v_assert(accdb_index_get_entry(&idx, &briefp, &userp, &passp) == 0);
 		//printf("%s, %s, %s\n", briefp, userp, passp);
-		assert(strcmp(brief, briefp) == 0);
-		assert(strcmp(user, userp) == 0);
-		assert(strcmp(pass, passp) == 0);
-		assert(accdb_index_next(&idx) == 0);
+		v_assert(strcmp(brief, briefp) == 0);
+		v_assert(strcmp(user, userp) == 0);
+		v_assert(strcmp(pass, passp) == 0);
+		v_assert(accdb_index_next(&idx) == 0);
 		++i;
 	}
-	assert(i == 127);
+	v_assert(i == 127);
 
-	assert(accdb_index_init(db, &idx) == 0);
+	v_assert(accdb_index_init(db, &idx) == 0);
 	note = NULL;
 	i = 0;
 	while (1) {
-		assert(accdb_index_next_note(&idx, &note, &size) == 0);
+		v_assert(accdb_index_next_note(&idx, &note, &size) == 0);
 		if (note == NULL)
 			break;
-		assert(size <= REC_BLOB_ENTRY_MAX);
-		assert(memcmp(note, bigbuf, size) == 0);
+		v_assert(size <= REC_BLOB_ENTRY_MAX);
+		v_assert(memcmp(note, bigbuf, size) == 0);
 		++i;
 	}
-	assert(i == 4);
+	v_assert(i == 4);
 
 	memset(bigbuf, 'B', 130);
 	bigbuf[129] = '\0';
 
-	assert(accdb_add(db, &idx, "blob brief", "blob usr", bigbuf) == 0);
-	assert(accdb_add(db, &idx, "blob brief", "blob usr", bigbuf) == 0);
-	assert(accdb_add(db, &idx, "blob brief", "blob usr", bigbuf) == 0);
+	v_assert(accdb_add(db, &idx, "blob brief", "blob usr", bigbuf) == 0);
+	v_assert(accdb_add(db, &idx, "blob brief", "blob usr", bigbuf) == 0);
+	v_assert(accdb_add(db, &idx, "blob brief", "blob usr", bigbuf) == 0);
 
-	assert(accdb_index_init(db, &idx) == 0);
+	v_assert(accdb_index_init(db, &idx) == 0);
 
 	i = 0;
 	while (accdb_index_has_entry(&idx)) {
-		assert(accdb_index_get_entry(&idx, &briefp, &userp, &passp) == 0);
+		v_assert(accdb_index_get_entry(&idx, &briefp, &userp, &passp) == 0);
 		if (!strcmp(briefp, "blob brief")) {
 			//printf("%s, %s, '%s'\n", briefp, userp, passp);
-			assert(strcmp("blob usr", userp) == 0);
-			assert(strcmp(bigbuf, passp) == 0);
+			v_assert(strcmp("blob usr", userp) == 0);
+			v_assert(strcmp(bigbuf, passp) == 0);
 			++i;
 		}
-		assert(accdb_index_next(&idx) == 0);
+		v_assert(accdb_index_next(&idx) == 0);
 	}
-	assert(i == 3);
+	v_assert(i == 3);
 
-	assert(accdb_add(db, &idx, "blob all", bigbuf, bigbuf) == 0);
-	assert(accdb_index_init(db, &idx) == 0);
+	v_assert(accdb_add(db, &idx, "blob all", bigbuf, bigbuf) == 0);
+	v_assert(accdb_index_init(db, &idx) == 0);
 
 	i = 0;
 	while (accdb_index_has_entry(&idx)) {
-		assert(accdb_index_get_entry(&idx, &briefp, &userp, &passp) == 0);
+		v_assert(accdb_index_get_entry(&idx, &briefp, &userp, &passp) == 0);
 		if (!strcmp(briefp, "blob all")) {
-			assert(strcmp(bigbuf, userp) == 0);
-			assert(strcmp(bigbuf, passp) == 0);
+			v_assert(strcmp(bigbuf, userp) == 0);
+			v_assert(strcmp(bigbuf, passp) == 0);
 			++i;
 		}
-		assert(accdb_index_next(&idx) == 0);
+		v_assert(accdb_index_next(&idx) == 0);
 	}
-	assert(i == 1);
+	v_assert(i == 1);
 
 	memset(bigbuf, 'B', REC_BLOB_ENTRY_MAX);
 	bigbuf[REC_BLOB_ENTRY_MAX - 1] = '\0';
 
-	assert(accdb_add(db, &idx, "blob giant", bigbuf, bigbuf) == 0);
-	assert(accdb_cache_clear(db) == 0);
-	assert(accdb_index_init(db, &idx) == 0);
+	v_assert(accdb_add(db, &idx, "blob giant", bigbuf, bigbuf) == 0);
+	v_assert(accdb_cache_clear(db) == 0);
+	v_assert(accdb_index_init(db, &idx) == 0);
 
 	i = 0;
 	while (accdb_index_has_entry(&idx)) {
-		assert(accdb_index_get_entry(&idx, &briefp, &userp, &passp) == 0);
+		v_assert(accdb_index_get_entry(&idx, &briefp, &userp, &passp) == 0);
 		if (!strcmp(briefp, "blob giant")) {
-			assert(strcmp(bigbuf, userp) == 0);
-			assert(strcmp(bigbuf, passp) == 0);
+			v_assert(strcmp(bigbuf, userp) == 0);
+			v_assert(strcmp(bigbuf, passp) == 0);
 			++i;
 		}
-		assert(accdb_index_next(&idx) == 0);
+		v_assert(accdb_index_next(&idx) == 0);
 	}
-	assert(i == 1);
+	v_assert(i == 1);
 
-	assert(accdb_index_init(db, &idx) == 0);
+	v_assert(accdb_index_init(db, &idx) == 0);
 	while (accdb_index_has_entry(&idx)) {
-		assert(accdb_del(&idx) == 0);
+		v_assert(accdb_del(&idx) == 0);
 	}
 
 	accdb_index_clear(&idx);
@@ -1788,36 +1789,36 @@ test_accdb_rec(struct accdb *db)
 	memset(bigbuf, 'B', sizeof(bigbuf) - 1);
 	bigbuf[sizeof(bigbuf) - 1] = '\0';
 
-	assert(index_rec_find_type(brief, user, pass, &len) == INDEX_NORMAL);
-	assert(len == strlen(brief) + strlen(user) + strlen(pass) + 4);
+	v_assert(index_rec_find_type(brief, user, pass, &len) == INDEX_NORMAL);
+	v_assert(len == strlen(brief) + strlen(user) + strlen(pass) + 4);
 
-	assert(index_rec_find_type(brief, bigbuf, pass, &len) == INDEX_EXT);
-	assert(len == strlen(brief) + 4);
+	v_assert(index_rec_find_type(brief, bigbuf, pass, &len) == INDEX_EXT);
+	v_assert(len == strlen(brief) + 4);
 
-	assert(index_rec_find_type(bigbuf, user, pass, &len) == INDEX_INVALID);
+	v_assert(index_rec_find_type(bigbuf, user, pass, &len) == INDEX_INVALID);
 
 	memset(rec, 0, sizeof(rec));
 	
-	assert(index_rec_create(rec, brief, user, pass) == 0);
-	assert(index_rec_parse(rec, &briefp, &userp, &passp) == 0);
-	assert(index_rec_get_extended(rec) == 0);
-	assert(strcmp(briefp, brief) == 0);
-	assert(strcmp(userp, user) == 0);
-	assert(strcmp(passp, pass) == 0);
+	v_assert(index_rec_create(rec, brief, user, pass) == 0);
+	v_assert(index_rec_parse(rec, &briefp, &userp, &passp) == 0);
+	v_assert(index_rec_get_extended(rec) == 0);
+	v_assert(strcmp(briefp, brief) == 0);
+	v_assert(strcmp(userp, user) == 0);
+	v_assert(strcmp(passp, pass) == 0);
 
 	memset(rec, 0, sizeof(rec));
 
-	assert(index_rec_create_extended(rec, brief, ptr) == 0);
-	assert(index_rec_parse_extended(rec, &briefp, &ptrp) == 0);
-	assert(index_rec_get_extended(rec) == 1);
-	assert(strcmp(briefp, brief) == 0);
-	assert(ptrp == ptr);
+	v_assert(index_rec_create_extended(rec, brief, ptr) == 0);
+	v_assert(index_rec_parse_extended(rec, &briefp, &ptrp) == 0);
+	v_assert(index_rec_get_extended(rec) == 1);
+	v_assert(strcmp(briefp, brief) == 0);
+	v_assert(ptrp == ptr);
 
 	memset(rec, 0, sizeof(rec));
-	assert(blob_rec_create(rec, REC_BLOB_NOTE, bigbuf, sizeof(bigbuf)) == 0);
-	assert(blob_rec_get_type(rec) == REC_BLOB_NOTE);
-	assert(blob_rec_get_size(rec) == sizeof(bigbuf));
-	assert(memcmp(blob_rec_get_data(rec), bigbuf, sizeof(bigbuf)) == 0);
+	v_assert(blob_rec_create(rec, REC_BLOB_NOTE, bigbuf, sizeof(bigbuf)) == 0);
+	v_assert(blob_rec_get_type(rec) == REC_BLOB_NOTE);
+	v_assert(blob_rec_get_size(rec) == sizeof(bigbuf));
+	v_assert(memcmp(blob_rec_get_data(rec), bigbuf, sizeof(bigbuf)) == 0);
 }
 
 void
@@ -1830,46 +1831,44 @@ test_accdb_allocation(struct accdb *db)
 
 #if 0
 	scratch = accdb_cache_get_scratch(db);
-	assert(scratch != NULL);
+	v_assert(scratch != NULL);
 	p = GET_SECTOR(scratch);
-	assert(p->buf == scratch);
-	assert(p->empty == 0);
-	assert(p->refcount == 1);
-	assert(p->scratch == 1);
-	assert(accdb_deallocate_buf(db, scratch) == 0);
+	v_assert(p->buf == scratch);
+	v_assert(p->empty == 0);
+	v_assert(p->refcount == 1);
+	v_assert(p->scratch == 1);
+	v_assert(accdb_deallocate_buf(db, scratch) == 0);
 #endif
 
-	assert(accdb_cache_flush(db) == 0);
+	v_assert(accdb_cache_flush(db) == 0);
 
 	for (i = 0; i < 3; ++i) { 
 		b[i] = accdb_allocate_buf(db, SECT_TYPE_BLOB);
-		assert(b[i] != NULL);
-		assert(buf_get_type(b[i]) == SECT_TYPE_BLOB);
+		v_assert(b[i] != NULL);
+		v_assert(buf_get_type(b[i]) == SECT_TYPE_BLOB);
 		p = GET_SECTOR(b[i]);
 		s[i] = p->sector;
-		assert(p->buf == b[i]);
-		assert(p->refcount == 1);
-		printf("allocate 0x%x\n", s[i]);
+		v_assert(p->buf == b[i]);
+		v_assert(p->refcount == 1);
 	}
 
 	for (i = 0; i < 3; ++i)
-		assert(accdb_deallocate_buf(db, b[i]) == 0);
+		v_assert(accdb_deallocate_buf(db, b[i]) == 0);
 
 	// with the allocator as it is, we should get the same sectors
 	// after freeing before.
 	for (i = 0; i < 3; ++i) { 
 		b[i] = accdb_allocate_buf(db, SECT_TYPE_BLOB);
-		assert(b[i] != NULL);
-		assert(buf_get_type(b[i]) == SECT_TYPE_BLOB);
+		v_assert(b[i] != NULL);
+		v_assert(buf_get_type(b[i]) == SECT_TYPE_BLOB);
 		p = GET_SECTOR(b[i]);
-		assert(s[i] == p->sector);
-		assert(p->buf == b[i]);
-		assert(p->refcount == 1);
-		printf("(2nd) allocate 0x%x\n", s[i]);
+		v_assert(s[i] == p->sector);
+		v_assert(p->buf == b[i]);
+		v_assert(p->refcount == 1);
 	}
 
 	for (i = 0; i < 3; ++i)
-		assert(accdb_deallocate_buf(db, b[i]) == 0);
+		v_assert(accdb_deallocate_buf(db, b[i]) == 0);
 }
 
 void
@@ -1884,9 +1883,9 @@ test_accdb_buffer(struct accdb *db)
 	size_t s1, s2, s3;
 
 	buf = accdb_allocate_buf(db, SECT_TYPE_BLOB);
-	assert(buf != NULL);
-	assert(buf_get_type(buf) == SECT_TYPE_BLOB);
-	assert(buf_get_size(buf) == 0);
+	v_assert(buf != NULL);
+	v_assert(buf_get_type(buf) == SECT_TYPE_BLOB);
+	v_assert(buf_get_size(buf) == 0);
 #if 0
 	buf_set_type_size(buf, SECT_TYPE_BLOB, 0);
 #endif
@@ -1896,52 +1895,43 @@ test_accdb_buffer(struct accdb *db)
 	memset(tmp, 0, sizeof(tmp));
 
 	b1 = buf_allocate_record(buf, s1);
-	assert(b1 != NULL);
+	v_assert(b1 != NULL);
 	memcpy(b1, a1, s1);
 	strcat(tmp, a1);
-	printf("a1 (%u) '%s', payload %u\n", (unsigned)s1, a1, (unsigned)buf_get_size(buf));
-	assert(buf_get_size(buf) == strlen(tmp));
-	assert(memcmp(buf_get_payload(buf), tmp, strlen(tmp)) == 0);
+	v_assert(buf_get_size(buf) == strlen(tmp));
+	v_assert(memcmp(buf_get_payload(buf), tmp, strlen(tmp)) == 0);
 
 	b2 = buf_allocate_record(buf, s2);
-	assert(b2 != NULL);
+	v_assert(b2 != NULL);
 	memcpy(b2, a2, s2);
 	strcat(tmp, a2);
-	printf("a2 (%u) '%s', payload %u\n", (unsigned)s2, a2, (unsigned)buf_get_size(buf));
-	assert(buf_get_size(buf) == strlen(tmp));
-	assert(memcmp(buf_get_payload(buf), tmp, strlen(tmp)) == 0);
+	v_assert(buf_get_size(buf) == strlen(tmp));
+	v_assert(memcmp(buf_get_payload(buf), tmp, strlen(tmp)) == 0);
 
 	b3 = buf_allocate_record(buf, s3);
-	assert(b3 != NULL);
+	v_assert(b3 != NULL);
 	memcpy(b3, a3, s3);
 	strcat(tmp, a3);
-	printf("a3 (%u) '%s', payload %u\n", (unsigned)s3, a3, (unsigned)buf_get_size(buf));
-	assert(buf_get_size(buf) == strlen(tmp));
-	assert(memcmp(buf_get_payload(buf), tmp, strlen(tmp)) == 0);
+	v_assert(buf_get_size(buf) == strlen(tmp));
+	v_assert(memcmp(buf_get_payload(buf), tmp, strlen(tmp)) == 0);
 
-	printf("a1 + a2 + a3 = %u bytes\n", (unsigned)(s1) + (unsigned)(s2) + (unsigned)(s3));
-	printf("1. payload (%u) '%.*s'\n", buf_get_size(buf), buf_get_size(buf), buf_get_payload(buf));
-	
 	tmp[0] = '\0';
 	strcat(tmp, a1);
 	strcat(tmp, a3);
 	buf_deallocate_record(buf, b2, s2);
-	printf("2. payload (%u) '%.*s'\n", buf_get_size(buf), buf_get_size(buf), buf_get_payload(buf));
-	assert(buf_get_size(buf) == strlen(tmp));
-	assert(memcmp(buf_get_payload(buf), tmp, strlen(tmp)) == 0);
+	v_assert(buf_get_size(buf) == strlen(tmp));
+	v_assert(memcmp(buf_get_payload(buf), tmp, strlen(tmp)) == 0);
 
 	tmp[0] = '\0';
 	strcat(tmp, a3);
 	buf_deallocate_record(buf, b1, s1);
-	printf("3. payload (%u) '%.*s'\n", buf_get_size(buf), buf_get_size(buf), buf_get_payload(buf));
-	assert(buf_get_size(buf) == strlen(tmp));
-	assert(memcmp(buf_get_payload(buf), tmp, strlen(tmp)) == 0);
+	v_assert(buf_get_size(buf) == strlen(tmp));
+	v_assert(memcmp(buf_get_payload(buf), tmp, strlen(tmp)) == 0);
 
 	tmp[0] = '\0';
 	// prior memmoves invalidates b3
 	buf_deallocate_section(buf, 0, s3); 
-	printf("4. payload (%u) '%.*s'\n", buf_get_size(buf), buf_get_size(buf), buf_get_payload(buf));
-	assert(buf_get_size(buf) == 0);
+	v_assert(buf_get_size(buf) == 0);
 	
 	accdb_deallocate_buf(db, buf);
 }
@@ -1955,32 +1945,32 @@ test_accdb_list(struct accdb *db)
 	char tmp[32];
 
 	head = accdb_allocate_buf(db, SECT_TYPE_BLOB);
-	assert(head != NULL);
+	v_assert(head != NULL);
 
 	buf_set_prev(head, 0xdead);
-	assert(buf_get_prev(head) == 0xdead);
+	v_assert(buf_get_prev(head) == 0xdead);
 	buf_set_prev(head, 0);
 
 	buf_set_next(head, 0xbeef);
-	assert(buf_get_next(head) == 0xbeef);
+	v_assert(buf_get_next(head) == 0xbeef);
 	buf_set_next(head, 0);
 
 	record = buf_allocate_record(head, 4);
-	assert(record != NULL);
+	v_assert(record != NULL);
 	memcpy(record, "HEAD", 4);
-	assert(buf_get_size(head) == 4);
-	assert(memcmp(buf_get_payload(head), "HEAD", 4) == 0);
+	v_assert(buf_get_size(head) == 4);
+	v_assert(memcmp(buf_get_payload(head), "HEAD", 4) == 0);
 
 	for (i = 0; i < 5; ++i) {
 		buf[i] = accdb_allocate_buf(db, SECT_TYPE_BLOB);
-		assert(buf[i] != NULL);
+		v_assert(buf[i] != NULL);
 		sprintf(tmp, "SECT %u", i);
 		record = buf_allocate_record(buf[i], strlen(tmp));
-		assert(record != NULL);
+		v_assert(record != NULL);
 		memcpy(record, tmp, strlen(tmp));
-		assert(accdb_list_append(db, head, buf[i]) == 0);
+		v_assert(accdb_list_append(db, head, buf[i]) == 0);
 	}
-
+#if 0
 	printf("1. HEAD: 0x%x (next 0x%x, prev 0x%x)\n",
 		accdb_cache_sector(head), buf_get_next(head),
 		buf_get_prev(head));
@@ -1991,23 +1981,23 @@ test_accdb_list(struct accdb *db)
 			buf_get_next(buf[i]),
 			buf_get_prev(buf[i]));
 	}
+#endif
+	v_assert(accdb_cache_flush(db) == 0);
 
-	assert(accdb_cache_flush(db) == 0);
+	v_assert(buf_get_prev(head) == SECT_NULL);
+	v_assert(buf_get_next(head) == accdb_cache_sector(buf[4]));
+	v_assert(buf_get_prev(buf[4]) == accdb_cache_sector(head));
+	v_assert(buf_get_next(buf[4]) == accdb_cache_sector(buf[3]));
+	v_assert(buf_get_prev(buf[3]) == accdb_cache_sector(buf[4]));
+	v_assert(buf_get_next(buf[3]) == accdb_cache_sector(buf[2]));
+	v_assert(buf_get_prev(buf[2]) == accdb_cache_sector(buf[3]));
+	v_assert(buf_get_next(buf[2]) == accdb_cache_sector(buf[1]));
+	v_assert(buf_get_prev(buf[1]) == accdb_cache_sector(buf[2]));
+	v_assert(buf_get_next(buf[1]) == accdb_cache_sector(buf[0]));
+	v_assert(buf_get_prev(buf[0]) == accdb_cache_sector(buf[1]));
+	v_assert(buf_get_next(buf[0]) == SECT_NULL);
 
-	assert(buf_get_prev(head) == SECT_NULL);
-	assert(buf_get_next(head) == accdb_cache_sector(buf[4]));
-	assert(buf_get_prev(buf[4]) == accdb_cache_sector(head));
-	assert(buf_get_next(buf[4]) == accdb_cache_sector(buf[3]));
-	assert(buf_get_prev(buf[3]) == accdb_cache_sector(buf[4]));
-	assert(buf_get_next(buf[3]) == accdb_cache_sector(buf[2]));
-	assert(buf_get_prev(buf[2]) == accdb_cache_sector(buf[3]));
-	assert(buf_get_next(buf[2]) == accdb_cache_sector(buf[1]));
-	assert(buf_get_prev(buf[1]) == accdb_cache_sector(buf[2]));
-	assert(buf_get_next(buf[1]) == accdb_cache_sector(buf[0]));
-	assert(buf_get_prev(buf[0]) == accdb_cache_sector(buf[1]));
-	assert(buf_get_next(buf[0]) == SECT_NULL);
-
-	assert(accdb_cache_clear(db) == 0);
+	v_assert(accdb_cache_clear(db) == 0);
 
 	head_save = accdb_cache_sector(head);
 	next = buf_get_next(head);
@@ -2015,17 +2005,17 @@ test_accdb_list(struct accdb *db)
 	i = 0;
 	while (!SECT_IS_NULL(next)) {
 		head = accdb_cache_get(db, next);
-		assert(head != NULL);
+		v_assert(head != NULL);
 		next = buf_get_next(head);
 		accdb_cache_put(head);
 		i++;
 	}
-	assert(i == 5);
+	v_assert(i == 5);
 
 	for (i = 0; i < 5; ++i)
 		accdb_cache_put(buf[i]);
 
-	assert(accdb_list_clear(db, head_save) == 0);
+	v_assert(accdb_list_clear(db, head_save) == 0);
 }
 
 // run this on a freshly opened DB
@@ -2036,47 +2026,47 @@ test_accdb_cache_list(struct accdb *db)
 	size_t i;
 
 	for (i = 0, s = db->mru; s; ++i, s = s->next) {
-		assert(i < ACCDB_CACHE_SIZE);
-		assert(&db->cache[i] == s);
-		assert(s->empty == 1);
+		v_assert(i < ACCDB_CACHE_SIZE);
+		v_assert(&db->cache[i] == s);
+		v_assert(s->empty == 1);
 	}
-	assert(i == ACCDB_CACHE_SIZE);
+	v_assert(i == ACCDB_CACHE_SIZE);
 	for (i = 0, s = db->lru; s; ++i, s = s->prev) {
-		assert(i < ACCDB_CACHE_SIZE);
-		assert(s->empty == 1);
+		v_assert(i < ACCDB_CACHE_SIZE);
+		v_assert(s->empty == 1);
 	}
-	assert(i == ACCDB_CACHE_SIZE);
-	assert(&db->cache[i - 1] == db->lru);
+	v_assert(i == ACCDB_CACHE_SIZE);
+	v_assert(&db->cache[i - 1] == db->lru);
 
 	accdb_cache_mru(db, &db->cache[2]);
 	for (i = 0, s = db->mru; s; ++i, s = s->next) {
-		assert(i < ACCDB_CACHE_SIZE);
-		assert(s->empty == 1);
+		v_assert(i < ACCDB_CACHE_SIZE);
+		v_assert(s->empty == 1);
 	}
-	assert(i == ACCDB_CACHE_SIZE);
+	v_assert(i == ACCDB_CACHE_SIZE);
 	for (i = 0, s = db->lru; s; ++i, s = s->prev) {
-		assert(i < ACCDB_CACHE_SIZE);
-		assert(s->empty == 1);
+		v_assert(i < ACCDB_CACHE_SIZE);
+		v_assert(s->empty == 1);
 	}
-	assert(i == ACCDB_CACHE_SIZE);
+	v_assert(i == ACCDB_CACHE_SIZE);
 	s = &db->cache[2];
-	assert(s->prev == NULL);
-	assert(db->mru == s);
+	v_assert(s->prev == NULL);
+	v_assert(db->mru == s);
 
 	accdb_cache_lru(db, &db->cache[3]);
 	for (i = 0, s = db->mru; s; ++i, s = s->next) {
-		assert(i < ACCDB_CACHE_SIZE);
-		assert(s->empty == 1);
+		v_assert(i < ACCDB_CACHE_SIZE);
+		v_assert(s->empty == 1);
 	}
-	assert(i == ACCDB_CACHE_SIZE);
+	v_assert(i == ACCDB_CACHE_SIZE);
 	for (i = 0, s = db->lru; s; ++i, s = s->prev) {
-		assert(i < ACCDB_CACHE_SIZE);
-		assert(s->empty == 1);
+		v_assert(i < ACCDB_CACHE_SIZE);
+		v_assert(s->empty == 1);
 	}
-	assert(i == ACCDB_CACHE_SIZE);
+	v_assert(i == ACCDB_CACHE_SIZE);
 	s = &db->cache[3];
-	assert(s->next == NULL);
-	assert(db->lru == s);
+	v_assert(s->next == NULL);
+	v_assert(db->lru == s);
 }
 
 #include "vfs_pc.h"
@@ -2087,13 +2077,13 @@ test_accdb_cache_list(struct accdb *db)
 #define TEST_POOL_SZ (ACCDB_CACHE_SIZE + 2)
 
 static void
-run_all(struct accdb *db)
+test_accdb_run_all(struct accdb *db)
 {
 	printf("\n\nCache list:\n");
 	test_accdb_cache_list(db);
 	printf("OK\n");
 
-	assert(accdb_format(db) == 0);
+	v_assert(accdb_format(db) == 0);
 
 	printf("\nIndex records:\n");
 	test_accdb_rec(db);
@@ -2122,12 +2112,13 @@ test_accdb_plaintext(struct pool *pool)
 	struct file fp;
 	struct accdb db;
 
-	assert(vfs_open(&pc_vfs, &fp, "test.db", VFS_RW) == 0);
+	printf("\n---Plain---\n");
+	v_assert(vfs_open(&pc_vfs, &fp, "test.db", VFS_RW) == 0);
 	accdb_open(&db, &fp, pool);
 
-	run_all(&db);
+	test_accdb_run_all(&db);
 
-	assert(accdb_cache_flush(&db) == 0);
+	v_assert(accdb_cache_flush(&db) == 0);
 	accdb_cache_print(&db, 0);
 	accdb_close(&db);
 	vfs_close(&fp);
@@ -2139,20 +2130,21 @@ test_accdb_crypt(struct pool *pool)
 	struct file fp;
 	struct accdb db;
 
-	assert(vfs_open(&pc_vfs, &fp, "test_crypt.db", VFS_RW) == 0);
-	assert(vfs_crypt_init(&fp, pool) == 0);
-	assert(vfs_crypt_format(&fp, TEST_PW, TEST_PW_LEN) == 0);
+	printf("\n---Encrypted---\n");
+	v_assert(vfs_open(&pc_vfs, &fp, "test_crypt.db", VFS_RW) == 0);
+	v_assert(vfs_crypt_init(&fp, pool) == 0);
+	v_assert(vfs_crypt_format(&fp, TEST_PW, TEST_PW_LEN) == 0);
 	vfs_close(&fp);
 
-	assert(vfs_open(&pc_vfs, &fp, "test_crypt.db", VFS_RW) == 0);
-	assert(vfs_crypt_init(&fp, pool) == 0);
-	assert(vfs_crypt_unlock(&fp, TEST_PW, TEST_PW_LEN) == 0);
+	v_assert(vfs_open(&pc_vfs, &fp, "test_crypt.db", VFS_RW) == 0);
+	v_assert(vfs_crypt_init(&fp, pool) == 0);
+	v_assert(vfs_crypt_unlock(&fp, TEST_PW, TEST_PW_LEN) == 0);
 
 	accdb_open(&db, &fp, pool);
 
-	run_all(&db);
+	test_accdb_run_all(&db);
 
-	assert(accdb_cache_flush(&db) == 0);
+	v_assert(accdb_cache_flush(&db) == 0);
 	accdb_cache_print(&db, 0);
 	accdb_close(&db);
 	vfs_close(&fp);
@@ -2164,7 +2156,7 @@ main(void)
 	struct pool *p;
 
 	p = pool_init(TEST_POOL_SZ);
-	assert(p);
+	v_assert(p);
 
 	crypto_init();
 	test_accdb_plaintext(p);
