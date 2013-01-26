@@ -623,6 +623,7 @@ test_vfs_crypt(const struct vfs *meth, struct pool *p)
 	printf("OK\n");
 }
 
+#if 0
 #include "vfs_pc.h"
 int
 main(void)
@@ -636,3 +637,4 @@ main(void)
 	
 	return 0;
 }
+#endif

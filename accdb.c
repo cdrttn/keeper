@@ -27,9 +27,11 @@ struct accdb {
 	struct file *fp;
 	struct pool *pool;
 	struct cleanup cleanup;
-#define ACCDB_CACHE_SIZE 8
 	uint8_t strategy:1;
 	uint8_t run_init:1;
+	uint16_t sect_start;
+	uint16_t sect_end;
+#define ACCDB_CACHE_SIZE 8
 	struct sector cache[ACCDB_CACHE_SIZE];
 	struct sector *mru;
 	struct sector *lru;
@@ -68,15 +70,15 @@ struct accdb_index {
 #define REC_BLOB_ENTRY		2
 #define REC_BLOB_ENTRY_MAX	(SECT_PAYLOAD_MAX - 2)
 
-#define BITMAP_START		0
-#define BITMAP_MAX		16
-#define INDEX_START		BITMAP_MAX
+#define BITMAP_START(db)	(0 + (db)->sect_start)
+#define BITMAP_MAX(db)		(16 + (db)->sect_start)
+#define INDEX_START(db)		BITMAP_MAX(db)
 #define SECT_NULL 		0
 #define ACCDB_MAX		0xffff
 #define SECT_IS_NULL(i)		((i) == SECT_NULL)
 #define SECT_PER_BITMAP		(VFS_SECT_SIZE * 8)
-#define BITMAP_OFFSET_TO_SECT(bsect, bbyte, bit)	\
-	(bsect * SECT_PER_BITMAP + bbyte * 8 + bit)
+#define BITMAP_OFFSET_TO_SECT(db, bsect, bbyte, bit)	\
+	((bsect - (db)->sect_start) * SECT_PER_BITMAP + bbyte * 8 + bit)
 #define GET_SECTOR(b) ((struct sector *)USER_PTR(b))
 
 static inline void accdb_cache_dirty(uint8_t *buf);
@@ -451,12 +453,14 @@ Cache
 
 ACCDB cache is a crude LRU and MRU system. Cache items are organized in a list.
 The most recently requested item is at the front, and the oldest item is
-at the end. The list may contain up to ACCDB_CACHE_MAX buffers.
+at the end. The list may contain up to ACCDB_CACHE_MAX buffers. Searching
+is linear, since there're only a handful of slots in practice.
 
 LRU replacement works by scaning the cache list back to front, looking for
 the first item that is not referenced. The item is either reused for
 a new sector of data and moved to the front of the list, or released
-back to the pool allocator if it wants us to free up some memory.
+back to the pool allocator if it wants us to free up some memory. Slots
+with unallocated buffers are sent to the back of the list.
 
 MRU is just the reverse process.
 
@@ -703,7 +707,7 @@ accdb_cache_flush(struct accdb *db)
 	return 0;
 }
 
-static uint8_t
+static int8_t
 accdb_cache_clear(struct accdb *db)
 {
 	size_t i;
@@ -775,14 +779,15 @@ accdb_allocate_sector(struct accdb *db, uint16_t *free_sect)
 	uint8_t *buf;
 
 	// search for a free sector
-	for (sector = BITMAP_START; sector < BITMAP_MAX; ++sector) {
+	for (sector = BITMAP_START(db); sector < BITMAP_MAX(db); ++sector) {
 		buf = accdb_cache_get(db, sector);
 		if (!buf)
 			return -1;
 		for (byte = 0; byte < VFS_SECT_SIZE; ++byte) {
 			for (bit = 0; bit < 8; ++bit) {
 				if (!(buf[byte] & (1 << bit))) {
-					*free_sect = BITMAP_OFFSET_TO_SECT(sector,
+					*free_sect = BITMAP_OFFSET_TO_SECT(db,
+									   sector,
 								           byte,
 									   bit);
 					buf[byte] |= (1 << bit);
@@ -821,13 +826,13 @@ accdb_allocate_buf(struct accdb *db, uint8_t type)
 static int8_t
 accdb_deallocate_sector(struct accdb *db, uint16_t sect)
 {
-	uint16_t bitmap = sect / SECT_PER_BITMAP;
+	uint16_t bitmap = sect / SECT_PER_BITMAP + BITMAP_START(db);
 	uint16_t offset = sect % SECT_PER_BITMAP;
 	uint16_t byte = offset / 8;
 	uint8_t bit = offset % 8;
 	uint8_t *buf;
 
-	if (sect < BITMAP_MAX)
+	if (sect < BITMAP_MAX(db))
 		return -1;
 
 	buf = accdb_cache_get(db, bitmap);
@@ -852,19 +857,28 @@ accdb_deallocate_buf(struct accdb *db, uint8_t *buf)
 static int8_t
 accdb_format(struct accdb *db)
 {
-	uint16_t i;
+	uint16_t i, count, byte;
 	uint8_t *buf;
 
-	for (i = BITMAP_START; i < BITMAP_MAX; ++i) {
+	count = db->sect_start;
+
+	for (i = BITMAP_START(db); i < BITMAP_MAX(db); ++i) {
 		buf = accdb_cache_get(db, i);
 		if (buf == NULL)
 			return -1;
 		memset(buf, 0, VFS_SECT_SIZE);
-		if (i == 0) {
+		byte = 0;
+		if (i == BITMAP_START(db)) {
 			// mark the first 16 bitmap bits, so the sectors
 			// of the bitmap aren't written over.
-			buf[0] = 0xff;
-			buf[1] = 0xff;
+			buf[byte++] = 0xff;
+			buf[byte++] = 0xff;
+		}
+		// mark reserved sectors
+		for (; count && byte < VFS_SECT_SIZE; ++byte) {
+			uint8_t bit;
+			for (bit = 0; count && bit < 8; ++bit, --count)
+				buf[byte] |= (1<<bit);
 		}
 		accdb_cache_put_dirty(buf);
 	}
@@ -970,7 +984,7 @@ accdb_index_init_internal(struct accdb *db, struct accdb_index *idx)
 	accdb_index_clear(idx);
 
 	idx->db = db;
-	idx->buf = accdb_cache_get(db, INDEX_START);
+	idx->buf = accdb_cache_get(db, INDEX_START(db));
 	if (idx->buf == NULL)
 		return -1;
 	if (buf_get_type(idx->buf) != SECT_TYPE_INDEX) {
@@ -1497,7 +1511,7 @@ accdb_del(struct accdb_index *idx)
 
 	if (buf_get_size(buf) == 0 && prev != 0) {
 		// remove this index page if it's empty (and not INDEX_START)
-		assert(accdb_cache_sector(buf) != INDEX_START);
+		assert(accdb_cache_sector(buf) != INDEX_START(db));
 		if (accdb_list_remove(db, buf) < 0)
 			return -1;
 		if (accdb_deallocate_buf(db, buf) < 0)
@@ -1541,7 +1555,27 @@ accdb_open(struct accdb *db, struct file *fp, struct pool *pool)
 	db->cleanup.arg = db;
 	pool_add_cleanup(pool, &db->cleanup);
 	accdb_cache_init(db);
+	db->sect_start = vfs_start_sector(fp);
 	
+	return 0;
+}
+
+int8_t
+accdb_close(struct accdb *db)
+{
+	size_t i;
+
+	if (accdb_cache_clear(db) < 0)
+		return -1;
+
+	pool_del_cleanup(db->pool, &db->cleanup);
+
+	for (i = 0; i < ACCDB_CACHE_SIZE; ++i) {
+		struct sector *s = &db->cache[i];
+		if (s->buf)
+			pool_deallocate_block(db->pool, s->buf);
+	}
+
 	return 0;
 }
 
@@ -2046,57 +2080,95 @@ test_accdb_cache_list(struct accdb *db)
 }
 
 #include "vfs_pc.h"
-
+#include "crypto.h"
+#include "vfs_crypt.h"
+#define TEST_PW "oogabooganooga"
+#define TEST_PW_LEN 14
 #define TEST_POOL_SZ (ACCDB_CACHE_SIZE + 2)
-int
-main(void)
+
+static void
+run_all(struct accdb *db)
 {
-	struct file fp;
-	struct accdb db;
-	struct pool *pool;
-
-	if (vfs_open(&pc_vfs, &fp, "test.db", VFS_RW) < 0)
-		goto out;
-	pool = pool_init(TEST_POOL_SZ);
-	assert(pool != NULL);
-	accdb_open(&db, &fp, pool);
-	//db.strategy = CACHE_MRU;
-
 	printf("\n\nCache list:\n");
-	test_accdb_cache_list(&db);
+	test_accdb_cache_list(db);
 	printf("OK\n");
 
-	if (accdb_format(&db) < 0)
-		goto out;
+	assert(accdb_format(db) == 0);
 
 	printf("\nIndex records:\n");
-	test_accdb_rec(&db);
+	test_accdb_rec(db);
 	printf("OK\n");
 
 	printf("\n\nAllocation:\n");
-	test_accdb_allocation(&db);
+	test_accdb_allocation(db);
 	printf("OK\n");
 
 	printf("\n\nBuffers:\n");
-	test_accdb_buffer(&db);
+	test_accdb_buffer(db);
 	printf("OK\n");
 
 	printf("\n\nLists:\n");
-	test_accdb_list(&db);
+	test_accdb_list(db);
 	printf("OK\n");
 
 	printf("\n\nDB:\n");
-	test_accdb(&db);
+	test_accdb(db);
 	printf("OK\n");
+}
 
-	if (accdb_cache_flush(&db) < 0)
-		goto out;
-	
+void
+test_accdb_plaintext(struct pool *pool)
+{
+	struct file fp;
+	struct accdb db;
+
+	assert(vfs_open(&pc_vfs, &fp, "test.db", VFS_RW) == 0);
+	accdb_open(&db, &fp, pool);
+
+	run_all(&db);
+
+	assert(accdb_cache_flush(&db) == 0);
 	accdb_cache_print(&db, 0);
+	accdb_close(&db);
+	vfs_close(&fp);
+}
 
-	return 0;
+void
+test_accdb_crypt(struct pool *pool)
+{
+	struct file fp;
+	struct accdb db;
 
-out:
-	perror("accdb");
+	assert(vfs_open(&pc_vfs, &fp, "test_crypt.db", VFS_RW) == 0);
+	assert(vfs_crypt_init(&fp, pool) == 0);
+	assert(vfs_crypt_format(&fp, TEST_PW, TEST_PW_LEN) == 0);
+	vfs_close(&fp);
+
+	assert(vfs_open(&pc_vfs, &fp, "test_crypt.db", VFS_RW) == 0);
+	assert(vfs_crypt_init(&fp, pool) == 0);
+	assert(vfs_crypt_unlock(&fp, TEST_PW, TEST_PW_LEN) == 0);
+
+	accdb_open(&db, &fp, pool);
+
+	run_all(&db);
+
+	assert(accdb_cache_flush(&db) == 0);
+	accdb_cache_print(&db, 0);
+	accdb_close(&db);
+	vfs_close(&fp);
+}
+
+int
+main(void)
+{
+	struct pool *p;
+
+	p = pool_init(TEST_POOL_SZ);
+	assert(p);
+
+	crypto_init();
+	test_accdb_plaintext(p);
+	test_accdb_crypt(p);
+
 	return 0;
 }
