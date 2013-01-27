@@ -89,7 +89,7 @@ static inline uint16_t buf_get_next(const uint8_t *sector);
 static inline uint16_t buf_get_prev(const uint8_t *sector);
 
 #ifdef DBGPRINT
-#define LOG(x) printf x
+#define LOG(x) logf(x)
 static const char *
 _s(const uint8_t *buf)
 {
@@ -589,27 +589,27 @@ accdb_cache_print(struct accdb *db, int quiet)
 	struct sector *s;
 	int avail = 0;
 
-	printf("Order: MRU -> LRU\n");
-	printf("-------------------\n");
+	logf((_P("Order: MRU -> LRU\n")));
+	logf((_P("-------------------\n")));
 	for (s = db->mru; s; s = s->next) {
 		if (!quiet) {
-			printf("cache:\n");
-			printf(" dirty = %d\n", (int)s->dirty);
-			printf(" refcount = %d\n", (int)s->refcount);
-			printf(" sector = %d\n", (int)s->sector);
-			printf(" empty = %d\n", (int)s->empty);
-			printf(" buf = %p\n\n", s->buf);
+			logf((_P("cache:\n")));
+			logf((_P(" dirty = %d\n"), (int)s->dirty));
+			logf((_P(" refcount = %d\n"), (int)s->refcount));
+			logf((_P(" sector = %d\n"), (int)s->sector));
+			logf((_P(" empty = %d\n"), (int)s->empty));
+			logf((_P(" buf = %p\n\n"), s->buf));
 		}
 		if (!s->refcount && s->buf)
 			avail++;
 	}
-	printf("available, %d/%d\n", avail, ACCDB_CACHE_SIZE);
-	printf("-------------------\n");
+	logf((_P("available, %d/%d\n"), avail, ACCDB_CACHE_SIZE));
+	logf((_P("-------------------\n")));
 #ifdef CACHE_MEASURE
-	printf("Total: %lu, Hits: %lu, Misses: %lu\n",
+	logf((_P("Total: %lu, Hits: %lu, Misses: %lu\n"),
 	       (unsigned long)(db->cache_hits + db->cache_misses),
 	       (unsigned long)db->cache_hits,
-	       (unsigned long)db->cache_misses);
+	       (unsigned long)db->cache_misses));
 #endif
 }
 
@@ -2069,51 +2069,53 @@ test_accdb_cache_list(struct accdb *db)
 	v_assert(db->lru == s);
 }
 
+#if 0
 #include "vfs_pc.h"
 #include "crypto.h"
 #include "vfs_crypt.h"
 #define TEST_PW "oogabooganooga"
 #define TEST_PW_LEN 14
 #define TEST_POOL_SZ (ACCDB_CACHE_SIZE + 2)
+#endif
 
 static void
 test_accdb_run_all(struct accdb *db)
 {
-	printf("\n\nCache list:\n");
+	logf((_P("\n\nCache list:\n")));
 	test_accdb_cache_list(db);
-	printf("OK\n");
+	logf((_P("OK\n")));
 
 	v_assert(accdb_format(db) == 0);
 
-	printf("\nIndex records:\n");
+	logf((_P("\nIndex records:\n")));
 	test_accdb_rec(db);
-	printf("OK\n");
+	logf((_P("OK\n")));
 
-	printf("\n\nAllocation:\n");
+	logf((_P("\n\nAllocation:\n")));
 	test_accdb_allocation(db);
-	printf("OK\n");
+	logf((_P("OK\n")));
 
-	printf("\n\nBuffers:\n");
+	logf((_P("\n\nBuffers:\n")));
 	test_accdb_buffer(db);
-	printf("OK\n");
+	logf((_P("OK\n")));
 
-	printf("\n\nLists:\n");
+	logf((_P("\n\nLists:\n")));
 	test_accdb_list(db);
-	printf("OK\n");
+	logf((_P("OK\n")));
 
-	printf("\n\nDB:\n");
+	logf((_P("\n\nDB:\n")));
 	test_accdb(db);
-	printf("OK\n");
+	logf((_P("OK\n")));
 }
 
 void
-test_accdb_plaintext(struct pool *pool)
+test_accdb_plaintext(const struct vfs *meth, struct pool *pool)
 {
 	struct file fp;
 	struct accdb db;
 
-	printf("\n---Plain---\n");
-	v_assert(vfs_open(&pc_vfs, &fp, "test.db", VFS_RW) == 0);
+	logf((_P("\n---Plain---\n")));
+	v_assert(vfs_open(meth, &fp, "test.db", VFS_RW) == 0);
 	accdb_open(&db, &fp, pool);
 
 	test_accdb_run_all(&db);
@@ -2124,6 +2126,7 @@ test_accdb_plaintext(struct pool *pool)
 	vfs_close(&fp);
 }
 
+#if 0
 void
 test_accdb_crypt(struct pool *pool)
 {
@@ -2149,7 +2152,9 @@ test_accdb_crypt(struct pool *pool)
 	accdb_close(&db);
 	vfs_close(&fp);
 }
+#endif
 
+#if 0
 int
 main(void)
 {
@@ -2164,3 +2169,4 @@ main(void)
 
 	return 0;
 }
+#endif

@@ -48,6 +48,10 @@ TARGET = sdtest
 SRC =	$(TARGET).c \
 	usb_debug_only.c \
 	print.c \
+	pool.c \
+	vfs.c \
+	vfs_fatfs.c \
+	accdb.c \
 	fatfs/ff.c \
 	fatfs/mmc.c \
 	ps2/keyboard.c \
@@ -123,7 +127,7 @@ CSTANDARD = -std=gnu99
 
 
 # Place -D or -U options here for C sources
-CDEFS = -DF_CPU=$(F_CPU)UL
+CDEFS = -DF_CPU=$(F_CPU)UL -DBUILD_AVR -DCACHE_MEASURE
 
 
 # Place -D or -U options here for ASM sources

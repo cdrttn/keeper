@@ -12,6 +12,10 @@
 #include "diskio.h"
 #include "keyboard.h"
 #include "keycodes.h"
+#include "pool.h"
+#include "test.h"
+#include "vfs.h"
+#include "vfs_fatfs.h"
 
 static int
 dbg_putc(char c, FILE *f)
@@ -215,18 +219,84 @@ cmd_ls(const char **argv, uint8_t argc)
 }
 
 static void
+cmd_rm(const char **argv, uint8_t argc)
+{
+	FRESULT rv;
+	uint8_t i;
+
+	if (argc < 2) {
+		logf((_P("ARGS: rm file ...\n")));
+		return;
+	} 
+
+	for (i = 1; i < argc; ++i) {
+		rv = f_unlink(argv[i]);
+		if (rv != FR_OK) {
+			logf((_P("can't rm '%s': %u\n"), argv[i], rv));
+		}
+	}
+}
+
+static void
+cmd_pool(const char **argv, int argc)
+{
+	test_pool_run_all();
+	//v_assert(0 == 0);
+}
+
+static void
+cmd_vfatfs(const char **argv, int argc)
+{
+	struct pool *p;
+
+	p = pool_init(5);
+	if (!p) {
+		logf(_P("can't alloc pool\n"));
+		return;
+	}
+	
+	test_vfs_run_all(&fatfs_vfs, p);
+
+	pool_free(p);
+}
+
+static void
+cmd_accdb(const char **argv, int argc)
+{
+	struct pool *p;
+
+	p = pool_init(10);
+	if (!p) {
+		logf(_P("can't alloc pool\n"));
+		return;
+	}
+	
+	test_accdb_plaintext(&fatfs_vfs, p);
+
+	pool_free(p);
+}
+
+static void
 map_command(const char **argv, int argc)
 {
 	const char *cmd = argv[0];
 
 	if (strcmp(cmd, "ls") == 0)
 		cmd_ls(argv, argc);
+	else if (strcmp(cmd, "rm") == 0)
+		cmd_rm(argv, argc);
 	else if (strcmp(cmd, "cd") == 0)
 		cmd_cd(argv, argc);
 	else if (strcmp(cmd, "cat") == 0)
 		cmd_cat(argv, argc);
 	else if (strcmp(cmd, "hd") == 0)
 		cmd_hd(argv, argc);
+	else if (strcmp(cmd, "pool") == 0)
+		cmd_pool(argv, argc);
+	else if (strcmp(cmd, "vfatfs") == 0)
+		cmd_vfatfs(argv, argc);
+	else if (strcmp(cmd, "accdb") == 0)
+		cmd_accdb(argv, argc);
 	else
 		printf_P(PSTR("Unknown command '%s'\n"), cmd);
 }

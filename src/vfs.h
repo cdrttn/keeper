@@ -35,5 +35,9 @@ int8_t vfs_write_sector(struct file *fp, const void *buf, size_t amt);
 uint16_t vfs_start_sector(struct file *fp);
 uint16_t vfs_end_sector(struct file *fp);
 
+struct pool;
+void test_vfs(const struct vfs *meth, struct pool *p);
+void test_vfs_run_all(const struct vfs *meth, struct pool *p);
+
 #endif // _VFS_H_
 

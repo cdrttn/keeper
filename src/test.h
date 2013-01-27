@@ -3,6 +3,7 @@
 
 #include <assert.h>
 #include <stdlib.h>
+#include "logging.h"
 
 /* Dead simple test framework. Pass the test or die!
    The state of an MCU might be ruined by a bad test,
@@ -10,9 +11,23 @@
    fixing things fix the problem instead of trying to
    recover.
 */
-#define TEST_PR(x) printf x
 
-#define TEST_ABORT() abort()
+#ifdef BUILD_AVR
+#define TEST_FLUSH() usb_debug_flush_output()
+#else
+#define TEST_FLUSH()
+#endif
+
+#define TEST_ABORT() do { \
+	TEST_FLUSH(); 	\
+	abort(); 	\
+} while(0)
+
+#ifdef BUILD_AVR
+#define AFMT "'%S' LINE %u: "
+#else
+#define AFMT "'%s' LINE %u: "
+#endif
 
 #ifdef TEST_ASSERT
 #define v_assert(a) assert(a)
@@ -22,12 +37,11 @@
 
 #define v_assert(a) \
 do {							\
-	TEST_PR(("ASSERT '%s' %s:%s:%u: ", #a,		\
-		__FILE__, __func__, __LINE__));		\
+	logf((_P("ASSERT "AFMT), _P(#a), __LINE__));	\
 	if ((a)) {					\
-		TEST_PR(("OK\n"));			\
+		logf((_P("OK\n")));			\
 	} else {					\
-		TEST_PR(("FAIL\n"));			\
+		logf((_P("FAIL\n")));			\
 		TEST_ABORT();				\
 	}						\
 } while (0)
@@ -37,9 +51,8 @@ do {							\
 #define v_assert(a) \
 do {							\
 	if (!(a)) {					\
-		TEST_PR(("ASSERT FAIL '%s' %s:%s:%u: ", #a,	\
-			__FILE__, __func__, __LINE__));	\
-		TEST_PR(("FAIL\n"));			\
+		logf((_P("ASSERT FAIL "AFMT), _P(#a), __LINE__));	\
+		logf((_P("FAIL\n")));			\
 		TEST_ABORT();				\
 	}						\
 } while (0)

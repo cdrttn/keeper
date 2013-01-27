@@ -100,20 +100,20 @@ pool_del_cleanup(struct pool *pool, struct cleanup *clean)
 
 #define TEST_POOL_SZ 10
 
+static uint8_t test_done = 0;
 static void
 test_cleanup(struct pool *pool, void *arg)
 {
-	static uint8_t done = 0;
 	uint8_t **buf = arg;
 	size_t i;
 	
-	if (done)
+	if (test_done)
 		return;
 
 	for (i = 0; i < TEST_POOL_SZ/2; ++i) {
 		pool_deallocate_block(pool, buf[i]);
 	}
-	done = 1;
+	test_done = 1;
 }
 
 static uint8_t
@@ -139,6 +139,7 @@ test_pool(void)
 		.arg = buf
 	};
 
+	test_done = 0;
 	pool = pool_init(TEST_POOL_SZ);
 	v_assert(pool != NULL);
 	v_assert(pool->total == TEST_POOL_SZ);
@@ -200,7 +201,7 @@ test_pool(void)
 void
 test_pool_run_all(void)
 {
-	printf("Pool:\n");
+	logf((_P("Pool:\n")));
 	test_pool();
-	printf("OK\n");
+	logf((_P("OK\n")));
 }

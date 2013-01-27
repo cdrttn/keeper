@@ -1,4 +1,7 @@
+#include <string.h>
 #include "vfs.h"
+#include "test.h"
+#include "pool.h"
 
 int8_t
 vfs_open(const struct vfs *methods, struct file *fp,
@@ -41,3 +44,64 @@ vfs_end_sector(struct file *fp)
 		return fp->vfs->vend_sector(fp);
 	return 0xffff;
 }
+
+#define TEST_FN "vfsfile.dat"
+
+static uint8_t
+test_sector_contains(const uint8_t *buf, char c)
+{
+	uint16_t i;
+
+	for (i = 0; i < 512; ++i) {
+		if (buf[i] != (uint8_t)c)
+			return 0;
+	}
+
+	return 1;
+}
+
+void
+test_vfs(const struct vfs *meth, struct pool *p)
+{
+	uint8_t *buf;
+	struct file f;
+
+	buf = pool_allocate_block(p, NULL);
+	v_assert(buf != NULL);
+
+	v_assert(vfs_open(meth, &f, TEST_FN, VFS_RW) == 0);
+	memset(buf, 'B', 512);
+	v_assert(vfs_write_sector(&f, buf, 1) == 0);
+	memset(buf, 'A', 512);
+	v_assert(vfs_write_sector(&f, buf, 0) == 0);
+	vfs_close(&f);
+	
+	v_assert(vfs_open(meth, &f, TEST_FN, VFS_RO) == 0);
+	v_assert(vfs_read_sector(&f, buf, 0) == 0);
+	v_assert(test_sector_contains(buf, 'A') == 1);
+	v_assert(vfs_read_sector(&f, buf, 1) == 0);
+	v_assert(test_sector_contains(buf, 'B') == 1);
+	vfs_close(&f);
+
+	pool_deallocate_block(p, buf);
+}
+
+void
+test_vfs_run_all(const struct vfs *meth, struct pool *p)
+{
+	logf((_P("VFS:\n")));
+	test_vfs(meth, p);
+	logf((_P("OK\n")));
+}
+
+#if 0
+#include "vfs_pc.h"
+int main(void)
+{
+	struct pool *p = pool_init(4);
+	v_assert(p);
+	test_vfs_run_all(&pc_vfs, p);
+	
+	return 0;
+}
+#endif

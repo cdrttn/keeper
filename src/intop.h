@@ -12,8 +12,10 @@ get_uint16(const uint8_t *buf, uint16_t pos)
 static inline uint32_t 
 get_uint32(const uint8_t *buf, uint16_t pos)
 {
-	return ((buf[pos] << 24) | (buf[pos + 1] << 16) |
-		(buf[pos + 2] << 8) | buf[pos + 3]);
+	return (((uint32_t)buf[pos] << 24) |
+		((uint32_t)buf[pos + 1] << 16) |
+		((uint32_t)buf[pos + 2] << 8) |
+		buf[pos + 3]);
 } 
 
 static inline void 
