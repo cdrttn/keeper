@@ -16,6 +16,7 @@
 #include "test.h"
 #include "vfs.h"
 #include "vfs_fatfs.h"
+#include "memdebug.h"
 
 static int
 dbg_putc(char c, FILE *f)
@@ -71,7 +72,7 @@ kbgets(char *buf, size_t amt, uint8_t echo)
 	return buf;
 }
 
-#define MAXPATH 128
+#define MAXPATH 64
 static char current_path[MAXPATH] = {0};
 
 static void
@@ -238,6 +239,15 @@ cmd_rm(const char **argv, uint8_t argc)
 }
 
 static void
+cmd_free(const char **argv, uint8_t argc)
+{
+	logf((_P("%04u %04u %04u : used/free/large\n"),
+		getMemoryUsed(),
+		getFreeMemory(),
+		getLargestAvailableMemoryBlock()));
+}
+
+static void
 cmd_pool(const char **argv, int argc)
 {
 	test_pool_run_all();
@@ -254,6 +264,7 @@ cmd_vfatfs(const char **argv, int argc)
 		logf(_P("can't alloc pool\n"));
 		return;
 	}
+	cmd_free(NULL, 0);
 	
 	test_vfs_run_all(&fatfs_vfs, p);
 
@@ -270,7 +281,8 @@ cmd_accdb(const char **argv, int argc)
 		logf(_P("can't alloc pool\n"));
 		return;
 	}
-	
+	cmd_free(NULL, 0);
+	kbgetch();
 	test_accdb_plaintext(&fatfs_vfs, p);
 
 	pool_free(p);
@@ -297,6 +309,8 @@ map_command(const char **argv, int argc)
 		cmd_vfatfs(argv, argc);
 	else if (strcmp(cmd, "accdb") == 0)
 		cmd_accdb(argv, argc);
+	else if (strcmp(cmd, "free") == 0)
+		cmd_free(argv, argc);
 	else
 		printf_P(PSTR("Unknown command '%s'\n"), cmd);
 }

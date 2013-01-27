@@ -52,6 +52,7 @@ SRC =	$(TARGET).c \
 	vfs.c \
 	vfs_fatfs.c \
 	accdb.c \
+	memdebug.c \
 	fatfs/ff.c \
 	fatfs/mmc.c \
 	ps2/keyboard.c \
@@ -127,7 +128,7 @@ CSTANDARD = -std=gnu99
 
 
 # Place -D or -U options here for C sources
-CDEFS = -DF_CPU=$(F_CPU)UL -DBUILD_AVR -DCACHE_MEASURE
+CDEFS = -DF_CPU=$(F_CPU)UL -DBUILD_AVR -DCACHE_MEASURE -DDEBUG
 
 
 # Place -D or -U options here for ASM sources
