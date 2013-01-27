@@ -44,6 +44,25 @@
 TARGET = sdtest
 
 
+CRYPTO_SRC = \
+	avrcrypto/hmac-sha1.c \
+	avrcrypto/pbkdf2.c \
+	avrcrypto/bcal_aes128.c \
+	avrcrypto/bcal_aes192.c \
+	avrcrypto/bcal_aes256.c \
+	avrcrypto/bcal-basic.c \
+	avrcrypto/bcal-cbc.c \
+	avrcrypto/keysize_descriptor.c
+
+CRYPTO_ASRC = \
+	avrcrypto/sha1-asm.S \
+	avrcrypto/aes_dec-asm.S \
+	avrcrypto/aes_enc-asm.S \
+	avrcrypto/aes_invsbox-asm.S \
+	avrcrypto/aes_keyschedule-asm.S \
+	avrcrypto/aes_sbox-asm.S \
+	avrcrypto/memxor.S
+
 # List C source files here. (C dependencies are automatically generated.)
 SRC =	$(TARGET).c \
 	usb_debug_only.c \
@@ -56,7 +75,8 @@ SRC =	$(TARGET).c \
 	fatfs/ff.c \
 	fatfs/mmc.c \
 	ps2/keyboard.c \
-	ps2/scancodes.c
+	ps2/scancodes.c \
+	$(CRYPTO_SRC)
 
 # MCU name, you MUST set this to match the board you are using
 # type "make clean" after changing this, so all files will be rebuilt
@@ -96,7 +116,8 @@ CPPSRC =
 #     Even though the DOS/Win* filesystem matches both .s and .S the same,
 #     it will preserve the spelling of the filenames, and gcc itself does
 #     care about how the name is spelled on its command-line.
-ASRC =
+#ASRC = avrcrypto/sha1-asm.S
+ASRC = $(CRYPTO_ASRC)
 
 
 # Optimization level, can be [0, 1, 2, 3, s]. 
@@ -116,7 +137,7 @@ DEBUG = dwarf-2
 #     Each directory must be seperated by a space.
 #     Use forward slashes for directory separators.
 #     For a directory that has spaces, enclose it in quotes.
-EXTRAINCDIRS = fatfs ps2
+EXTRAINCDIRS = fatfs ps2 avrcrypto
 
 
 # Compiler flag to set the C Standard level.
@@ -434,8 +455,8 @@ end:
 
 # Display size of file.
 HEXSIZE = $(SIZE) --target=$(FORMAT) $(TARGET).hex
-#ELFSIZE = $(SIZE) --mcu=$(MCU) --format=avr $(TARGET).elf
-ELFSIZE = $(SIZE) $(TARGET).elf
+ELFSIZE = $(SIZE) --mcu=$(MCU) --format=avr $(TARGET).elf
+#ELFSIZE = $(SIZE) $(TARGET).elf
 
 sizebefore:
 	@if test -f $(TARGET).elf; then echo; echo $(MSG_SIZE_BEFORE); $(ELFSIZE); \

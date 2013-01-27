@@ -17,7 +17,12 @@
 #include "vfs.h"
 #include "vfs_fatfs.h"
 #include "memdebug.h"
+#include "sha1.h"
+#include "pbkdf2.h"
+#include "bcal_aes256.h"
+#include "bcal-cbc.h"
 
+static void cmd_free(const char **argv, uint8_t argc);
 static int
 dbg_putc(char c, FILE *f)
 {
@@ -99,7 +104,7 @@ cmd_cat(const char **argv, uint8_t argc)
 	FIL f;
 	FRESULT rv;
 	UINT len;
-	char buf[128];
+	char buf[64];
 
 	if (argc != 2) {
 		print("ARGS: cat <path>\n");
@@ -125,6 +130,115 @@ cmd_cat(const char **argv, uint8_t argc)
 }
 
 static void
+cmd_sha1(const char **argv, uint8_t argc)
+{
+	//sha1_ctx_t sha;
+	uint8_t hash[20];
+	uint8_t i;
+
+	if (argc < 2) {
+		logf((_P("ARGS: sha1 <data>\n")));
+		return;
+	}
+
+	sha1(hash, argv[1], strlen(argv[1]) * 8);
+	
+	logf((_P("sha1('%s') = "), argv[1]));
+	for (i = 0; i < sizeof(hash); ++i) {
+		logf((_P("%02x"), (unsigned)hash[i]));
+	}
+	pchar('\n');
+}
+
+static void
+cmd_pbkdf2(const char **argv, uint8_t argc)
+{
+	uint8_t hash[32];
+	uint8_t i;
+	uint16_t iter;
+	int rv;
+
+	if (argc < 4) {
+		logf((_P("ARGS: pbkdf2 <pw> <salt> <iter>\n")));
+		return;
+	}
+
+	iter = atoi(argv[3]);
+
+	rv = pbkdf2_sha1(argv[1], strlen(argv[1]),
+			 argv[2], strlen(argv[2]),
+			 hash, sizeof(hash), iter);
+	
+	for (i = 0; i < sizeof(hash); ++i) {
+		logf((_P("%02x"), (unsigned)hash[i]));
+	}
+	pchar('\n');
+}
+
+static void
+cmd_aes(const char **argv, uint8_t argc)
+{
+	uint8_t key[32];
+	uint8_t iv[16];
+	//uint8_t buf[512];
+	uint8_t *buf;
+	bcal_cbc_ctx_t ctx;
+	uint16_t i;
+	size_t len;
+
+	if (argc < 4) {
+		logf((_P("ARGS: aes <key> <iv> <data>\n")));
+		return;
+	}
+
+	len = strlen(argv[1]);
+	if (len > sizeof(key))
+		len = sizeof(key);
+	memset(key, 0, sizeof(key));
+	memcpy(key, argv[1], len);
+	buf = calloc(1, 512);
+	if (buf == NULL) {
+		logf((_P("cant alloc buf\n")));
+		return;
+	}
+	if (bcal_cbc_init(&aes256_desc, key, sizeof(key)*8, &ctx)) {
+		logf((_P("bcal_cbc_init failed\n")));
+		free(buf);
+		return;
+	}
+
+	len = strlen(argv[2]);
+	if (len > sizeof(iv))
+		len = sizeof(iv);
+	memset(iv, 0, sizeof(iv));
+	memcpy(iv, argv[2], len);
+
+	memcpy(buf, argv[3], strlen(argv[3]));
+	bcal_cbc_encMsg(iv, buf, 512/16, &ctx);
+
+	for (i = 0; i < 512; ++i) {
+		if ((i % 16) == 0)
+			pchar('\n');
+		phex(buf[i]);
+		pchar(' ');
+	}
+	pchar('\n');
+
+	bcal_cbc_decMsg(iv, buf, 512/16, &ctx);
+	for (i = 0; i < 512; ++i) {
+		if ((i % 16) == 0)
+			pchar('\n');
+		phex(buf[i]);
+		pchar(' ');
+	}
+	pchar('\n');
+	pchar('\n');
+	cmd_free(NULL,0);
+	bcal_cbc_free(&ctx);
+	free(buf);
+}
+
+static void
 cmd_hd(const char **argv, uint8_t argc)
 {
 	FIL f;
@@ -132,7 +246,7 @@ cmd_hd(const char **argv, uint8_t argc)
 	UINT len, rd;
 	DWORD start;
 	DWORD span;
-	char buf[128];
+	char buf[64];
 
 	if (argc != 4) {
 		print("ARGS: hd <offset> <length> <path>\n");
@@ -210,7 +324,7 @@ cmd_ls(const char **argv, uint8_t argc)
 		dirc = ' ';
 		if (f.fattrib & AM_DIR)
 			dirc = '/';
-		printf_P(PSTR("% 11s%c %7lu Bytes\n"), f.fname, dirc, f.fsize);
+		printf_P(PSTR("% 12s%c %7lu Bytes\n"), f.fname, dirc, f.fsize);
 	}
 
 	if (rv != FR_OK) {
@@ -241,10 +355,20 @@ cmd_rm(const char **argv, uint8_t argc)
 static void
 cmd_free(const char **argv, uint8_t argc)
 {
+	extern char *__brkval;
+
 	logf((_P("%04u %04u %04u : used/free/large\n"),
 		getMemoryUsed(),
 		getFreeMemory(),
 		getLargestAvailableMemoryBlock()));
+#if 0
+	logf((_P("AVR_STACK_POINTER_REG = %p\n"), AVR_STACK_POINTER_REG));
+	logf((_P("__malloc_margin = %p\n"), __malloc_margin));
+	logf((_P("__malloc_heap_start = %p\n"), __malloc_heap_start));
+	logf((_P("__malloc_heap_end = %p\n"), __malloc_heap_end));
+	logf((_P("__brkval = %p\n"), __brkval));
+	logf((_P("freeListSize = %u\n"), (unsigned)getFreeListSize()));
+#endif
 }
 
 static void
@@ -293,23 +417,29 @@ map_command(const char **argv, int argc)
 {
 	const char *cmd = argv[0];
 
-	if (strcmp(cmd, "ls") == 0)
+	if (strcmp_P(cmd, _P("ls")) == 0)
 		cmd_ls(argv, argc);
-	else if (strcmp(cmd, "rm") == 0)
+	else if (strcmp_P(cmd, _P("rm")) == 0)
 		cmd_rm(argv, argc);
-	else if (strcmp(cmd, "cd") == 0)
+	else if (strcmp_P(cmd, _P("cd")) == 0)
 		cmd_cd(argv, argc);
-	else if (strcmp(cmd, "cat") == 0)
+	else if (strcmp_P(cmd, _P("cat")) == 0)
 		cmd_cat(argv, argc);
-	else if (strcmp(cmd, "hd") == 0)
+	else if (strcmp_P(cmd, _P("sha1")) == 0)
+		cmd_sha1(argv, argc);
+	else if (strcmp_P(cmd, _P("pbkdf2")) == 0)
+		cmd_pbkdf2(argv, argc);
+	else if (strcmp_P(cmd, _P("aes")) == 0)
+		cmd_aes(argv, argc);
+	else if (strcmp_P(cmd, _P("hd")) == 0)
 		cmd_hd(argv, argc);
-	else if (strcmp(cmd, "pool") == 0)
+	else if (strcmp_P(cmd, _P("pool")) == 0)
 		cmd_pool(argv, argc);
-	else if (strcmp(cmd, "vfatfs") == 0)
+	else if (strcmp_P(cmd, _P("vfatfs")) == 0)
 		cmd_vfatfs(argv, argc);
-	else if (strcmp(cmd, "accdb") == 0)
+	else if (strcmp_P(cmd, _P("accdb")) == 0)
 		cmd_accdb(argv, argc);
-	else if (strcmp(cmd, "free") == 0)
+	else if (strcmp_P(cmd, _P("free")) == 0)
 		cmd_free(argv, argc);
 	else
 		printf_P(PSTR("Unknown command '%s'\n"), cmd);
@@ -328,6 +458,7 @@ main(void)
 
 	CPU_PRESCALE(0);
 	stdout = &dbg_stdout;
+	stderr = &dbg_stdout;
 
 	keyboardInit();
 
@@ -360,6 +491,9 @@ main(void)
 	}
 	f_getcwd(current_path, sizeof(current_path));
 
+	logf((_P("sizeof(FATFS) = %u\n"), sizeof(FATFS)));
+	cmd_free(NULL, 0);
+
 	while (1) {
 		char *lnp;
 
@@ -373,6 +507,7 @@ main(void)
 		}
 		if (argc >= 1 && *argv[0])
 			map_command(argv, argc);
+		//print("1.HERE\n");
 	}
 
 	return 0;
