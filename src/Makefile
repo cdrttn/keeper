@@ -56,7 +56,7 @@ CRYPTO_SRC = \
 
 CRYPTO_ASRC = \
 	avrcrypto/sha1-asm.S \
-	avrcrypto/aes_dec-asm.S \
+	avrcrypto/aes_dec-asm_faster.S \
 	avrcrypto/aes_enc-asm.S \
 	avrcrypto/aes_invsbox-asm.S \
 	avrcrypto/aes_keyschedule-asm.S \

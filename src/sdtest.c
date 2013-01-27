@@ -191,6 +191,9 @@ cmd_aes(const char **argv, uint8_t argc)
 		return;
 	}
 
+	//for (i = 0; i < argc; ++i)
+		//logf((_P("argv[%u] = '%s'\n"), i, argv[i]));
+
 	len = strlen(argv[1]);
 	if (len > sizeof(key))
 		len = sizeof(key);
