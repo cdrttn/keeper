@@ -96,6 +96,21 @@ pool_del_cleanup(struct pool *pool, struct cleanup *clean)
 	}
 }
 
+void
+pool_print(struct pool *p)
+{
+	unsigned i;
+	
+	logf((_P("total = %u\n"), p->total));
+	logf((_P("nalloc = %u\n\n"), p->nallocated));
+
+	for (i = 0; i < p->total; ++i) {
+		struct block *b = &p->data[i];
+		logf((_P("block %p: user_ptr %p, alloc %d\n"),
+		     b->block, b->user_ptr, b->allocated));
+	}
+}
+
 // tests
 
 #define TEST_POOL_SZ 10

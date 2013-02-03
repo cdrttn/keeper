@@ -43,25 +43,56 @@
 # Target file name (without extension).
 TARGET = sdtest
 
-
 CRYPTO_SRC = \
 	avrcrypto/hmac-sha1.c \
 	avrcrypto/pbkdf2.c \
-	avrcrypto/bcal_aes128.c \
-	avrcrypto/bcal_aes192.c \
-	avrcrypto/bcal_aes256.c \
 	avrcrypto/bcal-basic.c \
 	avrcrypto/bcal-cbc.c \
-	avrcrypto/keysize_descriptor.c
+	avrcrypto/keysize_descriptor.c \
+	avrcrypto/sha1.c \
+	avrcrypto/bcal_cast5.c \
+	avrcrypto/memxor_c.c \
+	avrcrypto/cast5.c \
+	avrcrypto/cast5-sbox.c \
+	#avrcrypto/bcal_aes128.c \
+	#avrcrypto/aes128_dec.c \
+	#avrcrypto/aes192_dec.c \
+	#avrcrypto/aes256_dec.c \
+	#avrcrypto/aes_dec.c \
+	#avrcrypto/aes_invsbox.c \
+	#avrcrypto/aes_sbox.c \
+	#avrcrypto/aes128_enc.c \
+	#avrcrypto/aes192_enc.c \
+	#avrcrypto/aes256_enc.c \
+	#avrcrypto/aes_enc.c \
+	#avrcrypto/aes_keyschedule.c \
+	#avrcrypto/bcal_serpent.c \
+	#avrcrypto/bcal_aes256.c \
+	#avrcrypto/bcal_aes192.c \
 
-CRYPTO_ASRC = \
-	avrcrypto/sha1-asm.S \
-	avrcrypto/aes_dec-asm_faster.S \
-	avrcrypto/aes_enc-asm.S \
-	avrcrypto/aes_invsbox-asm.S \
-	avrcrypto/aes_keyschedule-asm.S \
-	avrcrypto/aes_sbox-asm.S \
-	avrcrypto/memxor.S
+#CRYPTO_ASRC = \
+	#avrcrypto/sha1-asm.S \
+	#avrcrypto/aes_dec-asm_faster.S \
+	#avrcrypto/aes_enc-asm.S \
+	#avrcrypto/aes_invsbox-asm.S \
+	#avrcrypto/aes_keyschedule-asm.S \
+	#avrcrypto/aes_sbox-asm.S \
+	#avrcrypto/memxor.S \
+	#avrcrypto/gf256mul.S
+	#avrcrypto/serpent-asm.S \
+	#avrcrypto/serpent-sboxes-fast.S \
+	#avrcrypto/serpent-sboxes-bitslice-asm.S \
+
+SHA204_SRC = \
+	sha204/bitbang_phys.c \
+	sha204/sha204_comm.c \
+	sha204/sha204_comm_marshaling.c \
+	sha204/sha204_swi.c \
+	sha204/timer_utilities.c \
+	#sha204/i2c_phys.c \
+	#sha204/sha204_i2c.c \
+	#sha204/uart_phys.c \
+
 
 # List C source files here. (C dependencies are automatically generated.)
 SRC =	$(TARGET).c \
@@ -70,13 +101,16 @@ SRC =	$(TARGET).c \
 	pool.c \
 	vfs.c \
 	vfs_fatfs.c \
+	vfs_crypt.c \
 	accdb.c \
+	crypto_avr.c \
 	memdebug.c \
 	fatfs/ff.c \
 	fatfs/mmc.c \
 	ps2/keyboard.c \
 	ps2/scancodes.c \
-	$(CRYPTO_SRC)
+	$(CRYPTO_SRC) \
+	$(SHA204_SRC)
 
 # MCU name, you MUST set this to match the board you are using
 # type "make clean" after changing this, so all files will be rebuilt
@@ -137,7 +171,7 @@ DEBUG = dwarf-2
 #     Each directory must be seperated by a space.
 #     Use forward slashes for directory separators.
 #     For a directory that has spaces, enclose it in quotes.
-EXTRAINCDIRS = fatfs ps2 avrcrypto
+EXTRAINCDIRS = fatfs ps2 avrcrypto sha204
 
 
 # Compiler flag to set the C Standard level.
@@ -149,7 +183,7 @@ CSTANDARD = -std=gnu99
 
 
 # Place -D or -U options here for C sources
-CDEFS = -DF_CPU=$(F_CPU)UL -DBUILD_AVR -DCACHE_MEASURE -DDEBUG
+CDEFS = -DF_CPU=$(F_CPU)UL -DBUILD_AVR -DCACHE_MEASURE -DDEBUG -DTEST_QUIET
 
 
 # Place -D or -U options here for ASM sources

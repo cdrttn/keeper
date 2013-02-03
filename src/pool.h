@@ -40,6 +40,8 @@ uint8_t *pool_allocate_block(struct pool *pool, void *p);
 void pool_deallocate_block(struct pool *pool, uint8_t *block);
 void pool_add_cleanup(struct pool *pool, struct cleanup *clean);
 void pool_del_cleanup(struct pool *pool, struct cleanup *clean);
+void pool_print(struct pool *p);
+
 
 void test_pool_run_all(void);
 void test_pool(void);

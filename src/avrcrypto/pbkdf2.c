@@ -102,7 +102,7 @@ hmac_sha1_buffer_final(struct hmac_sha1_buffer *hmac, void *hash)
  *  Output:         DK         derived key, a dkLen-octet string
  */
 
-#define MAX_PRF_BLOCK_LEN 80
+#define MAX_PRF_BLOCK_LEN SHA1_BLOCK_BYTES
 
 int pbkdf2_sha1(const char *P, size_t Plen,
 		const char *S, size_t Slen,

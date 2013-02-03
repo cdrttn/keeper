@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include "logging.h"
+#include "memdebug.h"
 
 /* Dead simple test framework. Pass the test or die!
    The state of an MCU might be ruined by a bad test,
@@ -24,7 +25,7 @@
 } while(0)
 
 #ifdef BUILD_AVR
-#define AFMT "'%S' LINE %u: "
+#define AFMT "'%S' MEM %u LINE %u: "
 #else
 #define AFMT "'%s' LINE %u: "
 #endif
@@ -37,7 +38,7 @@
 
 #define v_assert(a) \
 do {							\
-	logf((_P("ASSERT "AFMT), _P(#a), __LINE__));	\
+	logf((_P("ASSERT "AFMT), _P(#a), getFreeMemory(), __LINE__));	\
 	if ((a)) {					\
 		logf((_P("OK\n")));			\
 	} else {					\
@@ -51,7 +52,7 @@ do {							\
 #define v_assert(a) \
 do {							\
 	if (!(a)) {					\
-		logf((_P("ASSERT FAIL "AFMT), _P(#a), __LINE__));	\
+		logf((_P("ASSERT FAIL "AFMT), _P(#a), getFreeMemory(), __LINE__));	\
 		logf((_P("FAIL\n")));			\
 		TEST_ABORT();				\
 	}						\

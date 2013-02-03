@@ -18,9 +18,12 @@
 #include "vfs_fatfs.h"
 #include "memdebug.h"
 #include "sha1.h"
-#include "pbkdf2.h"
-#include "bcal_aes256.h"
-#include "bcal-cbc.h"
+#include "crypto.h"
+#include "vfs_crypt.h"
+#include "accdb.h"
+#include "accdb.h"
+#include "sha204_lib_return_codes.h"
+#include "sha204_comm_marshaling.h"
 
 static void cmd_free(const char **argv, uint8_t argc);
 static int
@@ -75,6 +78,21 @@ kbgets(char *buf, size_t amt, uint8_t echo)
 		pchar('\n');
 
 	return buf;
+}
+
+static void
+hexdump(const void *buf, size_t amt)
+{
+	const uint8_t *b = buf;
+	size_t i;
+
+	for (i = 0; i < amt; ++i) {
+		if ((i % 16) == 0)
+			pchar('\n');
+		phex(b[i]);
+		pchar(' ');
+	}
+	pchar(' ');
 }
 
 #define MAXPATH 64
@@ -151,12 +169,41 @@ cmd_sha1(const char **argv, uint8_t argc)
 }
 
 static void
+cmd_rand(const char **argv, uint8_t argc)
+{
+	uint8_t *buf;
+	size_t len;
+
+	if (argc < 2) {
+		logf((_P("ARGS: rand <nbytes>\n")));
+		return;
+	}
+
+	len = atoi(argv[1]);
+
+	buf = calloc(1, len);
+	if (!buf) {
+		logf((_P("failed to alloc buf\n")));
+		return;
+	}
+
+	if (crypto_get_rand_bytes(buf, len) < 0)
+		logf((_P("failed to get rand bytes\n")));
+	else {
+		hexdump(buf, len);
+		pchar('\n');
+	}
+	
+	free(buf);
+}
+
+static void
 cmd_pbkdf2(const char **argv, uint8_t argc)
 {
 	uint8_t hash[32];
 	uint8_t i;
 	uint16_t iter;
-	int rv;
+	int8_t rv;
 
 	if (argc < 4) {
 		logf((_P("ARGS: pbkdf2 <pw> <salt> <iter>\n")));
@@ -165,9 +212,9 @@ cmd_pbkdf2(const char **argv, uint8_t argc)
 
 	iter = atoi(argv[3]);
 
-	rv = pbkdf2_sha1(argv[1], strlen(argv[1]),
-			 argv[2], strlen(argv[2]),
-			 hash, sizeof(hash), iter);
+	rv = crypto_pbkdf2_sha1(argv[1], strlen(argv[1]),
+			        argv[2], strlen(argv[2]),
+				hash, sizeof(hash), iter);
 	
 	for (i = 0; i < sizeof(hash); ++i) {
 		logf((_P("%02x"), (unsigned)hash[i]));
@@ -178,67 +225,61 @@ cmd_pbkdf2(const char **argv, uint8_t argc)
 static void
 cmd_aes(const char **argv, uint8_t argc)
 {
-	uint8_t key[32];
-	uint8_t iv[16];
-	//uint8_t buf[512];
-	uint8_t *buf;
-	bcal_cbc_ctx_t ctx;
-	uint16_t i;
+	uint8_t key[KEEPER_KEY_SIZE];
+	uint8_t iv[KEEPER_IV_SIZE];
+	uint8_t *p, *c;
+	//uint8_t p[512], *c[512];
 	size_t len;
-
+	int8_t rv;
+	
 	if (argc < 4) {
 		logf((_P("ARGS: aes <key> <iv> <data>\n")));
 		return;
 	}
-
-	//for (i = 0; i < argc; ++i)
-		//logf((_P("argv[%u] = '%s'\n"), i, argv[i]));
-
+	cmd_free(NULL,0);
 	len = strlen(argv[1]);
 	if (len > sizeof(key))
 		len = sizeof(key);
 	memset(key, 0, sizeof(key));
 	memcpy(key, argv[1], len);
-	buf = calloc(1, 512);
-	if (buf == NULL) {
+#if 1
+	p = calloc(1, 512);
+	c = calloc(1, 512);
+	if (!p || !c) {
 		logf((_P("cant alloc buf\n")));
-		return;
+		goto out;
 	}
-	if (bcal_cbc_init(&aes256_desc, key, sizeof(key)*8, &ctx)) {
-		logf((_P("bcal_cbc_init failed\n")));
-		free(buf);
-		return;
-	}
-
+#endif
 	len = strlen(argv[2]);
 	if (len > sizeof(iv))
 		len = sizeof(iv);
 	memset(iv, 0, sizeof(iv));
 	memcpy(iv, argv[2], len);
 
-	memcpy(buf, argv[3], strlen(argv[3]));
-	bcal_cbc_encMsg(iv, buf, 512/16, &ctx);
-
-	for (i = 0; i < 512; ++i) {
-		if ((i % 16) == 0)
-			pchar('\n');
-		phex(buf[i]);
-		pchar(' ');
+	memcpy(p, argv[3], strlen(argv[3]));
+	rv = crypto_cipher_sector(NULL, key, iv, C_ENC, p, c);
+	if (rv < 0) {
+		logf((_P("encryption failed\n")));
+		goto out;
 	}
-	pchar('\n');
-
-	bcal_cbc_decMsg(iv, buf, 512/16, &ctx);
-	for (i = 0; i < 512; ++i) {
-		if ((i % 16) == 0)
-			pchar('\n');
-		phex(buf[i]);
-		pchar(' ');
+	//hexdump(c, 512);
+	//pchar('\n');
+	rv = crypto_cipher_sector(NULL, key, iv, C_DEC, c, p);
+	if (rv < 0) {
+		logf((_P("decryption failed\n")));
+		goto out;
 	}
-	pchar('\n');
-	pchar('\n');
-	cmd_free(NULL,0);
-	bcal_cbc_free(&ctx);
-	free(buf);
+	//hexdump(p, 512);
+	//pchar('\n');
+	if (memcmp(p, argv[3], strlen(argv[3]))) {
+		logf((_P("what? failed match\n")));
+		goto out;
+	}
+	logf((_P("crypto good!\n")));
+
+out:
+	free(p);
+	free(c);
 }
 
 static void
@@ -382,6 +423,42 @@ cmd_pool(const char **argv, int argc)
 }
 
 static void
+cmd_sha204(const char **argv, int argc)
+{
+	uint8_t rxb[SHA204_RSP_SIZE_MAX];
+	uint8_t txb[RANDOM_COUNT];
+	uint8_t rv;
+	uint8_t i;
+
+	/*
+	static uint8_t sha204m_execute(uint8_t op_code,
+					uint8_t param1,
+					uint16_t param2,
+					uint8_t datalen1,
+					uint8_t *data1,
+					uint8_t datalen2,
+					uint8_t *data2,
+					uint8_t datalen3,
+					uint8_t *data3,
+					uint8_t tx_size,
+					uint8_t *tx_buffer,
+					uint8_t rx_size,
+					uint8_t *rx_buffer)
+	*/
+
+	memset(rxb, 0, sizeof(rxb));
+	rv = sha204m_execute(SHA204_RANDOM, RANDOM_NO_SEED_UPDATE, 0,
+			     0, NULL, 0, NULL, 0, NULL,
+			     sizeof(txb), txb, sizeof(rxb), rxb);
+	logf((_P("RV = %u\n"), (unsigned)rv));
+	logf((_P("rand = ")));
+	for (i = 0; i < sizeof(rxb); ++i) {
+		phex(rxb[i]);
+	}
+	pchar('\n');
+}
+
+static void
 cmd_vfatfs(const char **argv, int argc)
 {
 	struct pool *p;
@@ -403,16 +480,54 @@ cmd_accdb(const char **argv, int argc)
 {
 	struct pool *p;
 
-	p = pool_init(10);
+	p = pool_init(8);
 	if (!p) {
 		logf(_P("can't alloc pool\n"));
 		return;
 	}
 	cmd_free(NULL, 0);
-	kbgetch();
-	test_accdb_plaintext(&fatfs_vfs, p);
+	if (argc > 1)
+		test_accdb_crypt(&fatfs_vfs, p);
+	else
+		test_accdb_plaintext(&fatfs_vfs, p);
 
 	pool_free(p);
+}
+
+static void
+cmd_crypto(const char **argv, int argc)
+{
+	struct pool *p;
+
+	p = pool_init(6);
+	if (!p) {
+		logf(_P("can't alloc pool\n"));
+		return;
+	}
+	test_vfs_crypt_run_all(&fatfs_vfs, p);
+
+	pool_free(p);
+}
+
+static void map_command(const char **argv, int argc);
+
+static void
+cmd_loop(const char **argv, int argc)
+{
+	unsigned long cnt;
+
+	if (argc < 3) {
+		print("ARGS: loop <count> <prog> <arg1> <argn>\n");
+		return;
+	}
+	
+	cnt = strtoul(argv[1], NULL, 0);
+	
+	while (cnt) {
+		logf((_P("\niteration: %lu\n"), cnt));
+		map_command(argv + 2, argc - 2);
+		cnt--;
+	}
 }
 
 static void
@@ -430,6 +545,8 @@ map_command(const char **argv, int argc)
 		cmd_cat(argv, argc);
 	else if (strcmp_P(cmd, _P("sha1")) == 0)
 		cmd_sha1(argv, argc);
+	else if (strcmp_P(cmd, _P("rand")) == 0)
+		cmd_rand(argv, argc);
 	else if (strcmp_P(cmd, _P("pbkdf2")) == 0)
 		cmd_pbkdf2(argv, argc);
 	else if (strcmp_P(cmd, _P("aes")) == 0)
@@ -442,8 +559,14 @@ map_command(const char **argv, int argc)
 		cmd_vfatfs(argv, argc);
 	else if (strcmp_P(cmd, _P("accdb")) == 0)
 		cmd_accdb(argv, argc);
+	else if (strcmp_P(cmd, _P("crypto")) == 0)
+		cmd_crypto(argv, argc);
 	else if (strcmp_P(cmd, _P("free")) == 0)
 		cmd_free(argv, argc);
+	else if (strcmp_P(cmd, _P("loop")) == 0)
+		cmd_loop(argv, argc);
+	else if (strcmp_P(cmd, _P("sha204")) == 0)
+		cmd_sha204(argv, argc);
 	else
 		printf_P(PSTR("Unknown command '%s'\n"), cmd);
 }
@@ -496,6 +619,9 @@ main(void)
 
 	logf((_P("sizeof(FATFS) = %u\n"), sizeof(FATFS)));
 	cmd_free(NULL, 0);
+
+	/// XXX
+	sha204p_init();
 
 	while (1) {
 		char *lnp;

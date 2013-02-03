@@ -1550,7 +1550,7 @@ int8_t
 accdb_open(struct accdb *db, struct file *fp, struct pool *pool)
 {
 	db->fp = fp;
-	db->strategy = CACHE_LRU;
+	db->strategy = CACHE_MRU;
 	db->pool = pool;
 	db->cleanup.cb = (try_free_cb)accdb_cache_do_cleanup;
 	db->cleanup.arg = db;
@@ -1738,8 +1738,20 @@ test_accdb(struct accdb *db)
 	while (accdb_index_has_entry(&idx)) {
 		v_assert(accdb_index_get_entry(&idx, &briefp, &userp, &passp) == 0);
 		if (!strcmp(briefp, "blob all")) {
+			if (strcmp(bigbuf, userp) != 0) {
+				logf((_P("?????userp == '%s'\n"), userp));
+				logf((_P("?????passp == '%s'\n"), passp));
+				v_assert(0);
+			}
+			if (strcmp(bigbuf, passp) != 0) {
+				logf((_P("?????userp == '%s'\n"), userp));
+				logf((_P("?????passp == '%s'\n"), passp));
+				v_assert(0);
+			}
+			/*
 			v_assert(strcmp(bigbuf, userp) == 0);
 			v_assert(strcmp(bigbuf, passp) == 0);
+			*/
 			++i;
 		}
 		v_assert(accdb_index_next(&idx) == 0);
@@ -2069,15 +2081,6 @@ test_accdb_cache_list(struct accdb *db)
 	v_assert(db->lru == s);
 }
 
-#if 0
-#include "vfs_pc.h"
-#include "crypto.h"
-#include "vfs_crypt.h"
-#define TEST_PW "oogabooganooga"
-#define TEST_PW_LEN 14
-#define TEST_POOL_SZ (ACCDB_CACHE_SIZE + 2)
-#endif
-
 static void
 test_accdb_run_all(struct accdb *db)
 {
@@ -2126,20 +2129,25 @@ test_accdb_plaintext(const struct vfs *meth, struct pool *pool)
 	vfs_close(&fp);
 }
 
-#if 0
+#include "crypto.h"
+#include "vfs_crypt.h"
+#define TEST_PW "oogabooganooga"
+#define TEST_PW_LEN 14
+#define TEST_POOL_SZ (ACCDB_CACHE_SIZE + 2)
+
 void
-test_accdb_crypt(struct pool *pool)
+test_accdb_crypt(const struct vfs *meth, struct pool *pool)
 {
 	struct file fp;
 	struct accdb db;
 
 	printf("\n---Encrypted---\n");
-	v_assert(vfs_open(&pc_vfs, &fp, "test_crypt.db", VFS_RW) == 0);
+	v_assert(vfs_open(meth, &fp, "crypt.db", VFS_RW) == 0);
 	v_assert(vfs_crypt_init(&fp, pool) == 0);
 	v_assert(vfs_crypt_format(&fp, TEST_PW, TEST_PW_LEN) == 0);
 	vfs_close(&fp);
 
-	v_assert(vfs_open(&pc_vfs, &fp, "test_crypt.db", VFS_RW) == 0);
+	v_assert(vfs_open(meth, &fp, "crypt.db", VFS_RW) == 0);
 	v_assert(vfs_crypt_init(&fp, pool) == 0);
 	v_assert(vfs_crypt_unlock(&fp, TEST_PW, TEST_PW_LEN) == 0);
 
@@ -2152,7 +2160,6 @@ test_accdb_crypt(struct pool *pool)
 	accdb_close(&db);
 	vfs_close(&fp);
 }
-#endif
 
 #if 0
 int

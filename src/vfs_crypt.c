@@ -8,6 +8,7 @@
 #include "crypto.h"
 #include "pool.h"
 #include "test.h"
+#include "print.h"
 
 #define SECT_SIZE VFS_SECT_SIZE
 struct crypt_file {
@@ -243,7 +244,7 @@ vfs_crypt_format(struct file *fp, const void *password, size_t len)
 	rv = vfs_write_sector(BASE(fp), buf, 0);
 	if (rv < 0)
 		goto out;
-
+	//print("XXXXXXXXXXXXXXXXXXXXXXX here!!\n");
 	// encrypt the master key with the user's key
 	memset(buf, 0, SECT_SIZE);
 	memcpy(buf, key, KEEPER_KEY_SIZE);
@@ -406,7 +407,9 @@ static void
 vfs_crypt_close(struct file *fp)
 {
 	vfs_close(BASE(fp));
+#ifndef BUILD_AVR
 	crypto_cipher_free(CTX(fp)->cipher);
+#endif
 	pool_deallocate_block(CTX(fp)->pool, CTX(fp)->buf);
 	memset(CTX(fp), 0, sizeof(struct crypt_file));
 	free(CTX(fp));
@@ -461,10 +464,11 @@ vfs_crypt_init(struct file *base, struct pool *pool)
 	if (crypt == NULL)
 		return -1;
 
+#ifndef BUILD_AVR
 	crypt->cipher = crypto_cipher_init();
 	if (crypt->cipher == NULL)
 		goto out;
-
+#endif
 	crypt->buf = pool_allocate_block(pool, NULL);
 	if (crypt->buf == NULL)
 		goto out;
@@ -480,14 +484,16 @@ vfs_crypt_init(struct file *base, struct pool *pool)
 out:
 	if (crypt->buf)
 		pool_deallocate_block(pool, crypt->buf);
+#ifndef BUILD_AVR
 	if (crypt->cipher)
 		crypto_cipher_free(crypt->cipher);
+#endif
 	free(crypt);
 
 	return -1;
 }
 
-#define TEST_FN "test_crypt.bin"
+#define TEST_FN "vfscrypt.bin"
 #define TEST_PW "oogabooganooga"
 #define TEST_PW_LEN 14
 #define TEST_N_PW "roborobomofoman"
@@ -607,21 +613,21 @@ test_vfs_crypt_header(struct pool *pool)
 void
 test_vfs_crypt_run_all(const struct vfs *meth, struct pool *p)
 {
-	printf("Header:\n");
+	logf((_P("Header:\n")));
 	test_vfs_crypt_header(p);
-	printf("OK\n");
+	logf((_P("OK\n")));
 
-	printf("Format:\n");
+	logf((_P("Format:\n")));
 	test_vfs_crypt_format(meth, p);
-	printf("OK\n");
+	logf((_P("OK\n")));
 
-	printf("Unlock:\n");
+	logf((_P("Unlock:\n")));
 	test_vfs_crypt_unlock(meth, p);
-	printf("OK\n");
+	logf((_P("OK\n")));
 
-	printf("Chpass:\n");
+	logf((_P("Chpass:\n")));
 	test_vfs_crypt_chpass(meth, p);
-	printf("OK\n");
+	logf((_P("OK\n")));
 }
 
 #if 0

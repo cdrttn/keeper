@@ -1,10 +1,11 @@
 #include <avr/pgmspace.h>
+#include <stdint.h>
 #include "keycodes.h"
 #include "scancodes.h"
 
 
 // scan_to_ascii[][scancode, ASCII, Shifted ASCII]
-static const prog_uchar PROGMEM scan_to_ascii[][5] = 
+static const uint8_t PROGMEM scan_to_ascii[][5] = 
 {
 {0x01, F9,	SHIFT_F9,	CTL_F9,		ALT_F9},
 {0x03, F5,	SHIFT_F5,	CTL_F5,		ALT_F5},

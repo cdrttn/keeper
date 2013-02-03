@@ -9,4 +9,6 @@ int8_t vfs_crypt_format(struct file *fp, const void *password, size_t len);
 int8_t vfs_crypt_unlock(struct file *fp, const void *password, size_t len);
 int8_t vfs_crypt_chpass(struct file *fp, const void *newpw, size_t len);
 
+void test_vfs_crypt_run_all(const struct vfs *meth, struct pool *p);
+
 #endif // _VFS_CRYPT_H_
