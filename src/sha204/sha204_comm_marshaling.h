@@ -340,7 +340,6 @@
 
 //////////////////////////////////////////////////////////////////////
 // function definitions
-#ifdef SHA204_COMMAND_FUNCTIONS
 	uint8_t sha204m_check_mac(uint8_t *tx_buffer, uint8_t *rx_buffer,
 				uint8_t mode, uint8_t key_id, uint8_t *client_challenge, uint8_t *client_response, uint8_t *other_data);
 	uint8_t sha204m_derive_key(uint8_t *tx_buffer, uint8_t *rx_buffer,
@@ -359,10 +358,8 @@
 	uint8_t sha204m_update_extra(uint8_t *tx_buffer, uint8_t *rx_buffer, uint8_t mode, uint8_t new_value);
 	uint8_t sha204m_write(uint8_t *tx_buffer, uint8_t *rx_buffer,
 				uint8_t zone, uint16_t address, uint8_t *value, uint8_t *mac);
-#else
 	uint8_t sha204m_execute(uint8_t op_code, uint8_t param1, uint16_t param2,
 				uint8_t datalen1, uint8_t *data1, uint8_t datalen2, uint8_t *data2, uint8_t datalen3, uint8_t *data3,
 				uint8_t tx_size, uint8_t *tx_buffer, uint8_t rx_size, uint8_t *rx_buffer);
-#endif
 
 #endif

@@ -84,6 +84,7 @@ CRYPTO_SRC = \
 	#avrcrypto/serpent-sboxes-bitslice-asm.S \
 
 SHA204_SRC = \
+	sha204/sha204_util.c \
 	sha204/bitbang_phys.c \
 	sha204/sha204_comm.c \
 	sha204/sha204_comm_marshaling.c \
@@ -489,8 +490,8 @@ end:
 
 # Display size of file.
 HEXSIZE = $(SIZE) --target=$(FORMAT) $(TARGET).hex
-ELFSIZE = $(SIZE) --mcu=$(MCU) --format=avr $(TARGET).elf
-#ELFSIZE = $(SIZE) $(TARGET).elf
+#ELFSIZE = $(SIZE) --mcu=$(MCU) --format=avr $(TARGET).elf
+ELFSIZE = $(SIZE) $(TARGET).elf
 
 sizebefore:
 	@if test -f $(TARGET).elf; then echo; echo $(MSG_SIZE_BEFORE); $(ELFSIZE); \

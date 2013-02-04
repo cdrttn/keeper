@@ -21,9 +21,7 @@
 #include "crypto.h"
 #include "vfs_crypt.h"
 #include "accdb.h"
-#include "accdb.h"
-#include "sha204_lib_return_codes.h"
-#include "sha204_comm_marshaling.h"
+#include "sha204_util.h"
 
 static void cmd_free(const char **argv, uint8_t argc);
 static int
@@ -425,37 +423,36 @@ cmd_pool(const char **argv, int argc)
 static void
 cmd_sha204(const char **argv, int argc)
 {
-	uint8_t rxb[SHA204_RSP_SIZE_MAX];
-	uint8_t txb[RANDOM_COUNT];
 	uint8_t rv;
 	uint8_t i;
+	const uint8_t *p;
+	sha204_config_t conf;
 
-	/*
-	static uint8_t sha204m_execute(uint8_t op_code,
-					uint8_t param1,
-					uint16_t param2,
-					uint8_t datalen1,
-					uint8_t *data1,
-					uint8_t datalen2,
-					uint8_t *data2,
-					uint8_t datalen3,
-					uint8_t *data3,
-					uint8_t tx_size,
-					uint8_t *tx_buffer,
-					uint8_t rx_size,
-					uint8_t *rx_buffer)
-	*/
-
-	memset(rxb, 0, sizeof(rxb));
-	rv = sha204m_execute(SHA204_RANDOM, RANDOM_NO_SEED_UPDATE, 0,
-			     0, NULL, 0, NULL, 0, NULL,
-			     sizeof(txb), txb, sizeof(rxb), rxb);
-	logf((_P("RV = %u\n"), (unsigned)rv));
-	logf((_P("rand = ")));
-	for (i = 0; i < sizeof(rxb); ++i) {
-		phex(rxb[i]);
+	rv = sha204_get_config(conf);
+	if (rv) {
+		print("can't get sha204 config");
+		return;
 	}
+
+	print("serial = ");
+	p = sha204_config_sn_first(conf);
+	for (i = 0; i < SN_FIRST_LEN; ++i)
+		phex(p[i]);
+	p = sha204_config_sn_last(conf);
+	for (i = 0; i < SN_LAST_LEN; ++i)
+		phex(p[i]);
 	pchar('\n');
+
+	print("revision = ");
+	p = sha204_config_rev(conf);
+	for (i = 0; i < REV_LEN; ++i)
+		phex(p[i]);
+	pchar('\n');
+
+	logf((_P("i2c_enabled = 0x%x\n"), sha204_config_i2c_enabled(conf)));
+	logf((_P("i2c_addr = 0x%x\n"), sha204_config_i2c_addr(conf)));
+	logf((_P("otp_mode = 0x%x\n"), sha204_config_otp_mode(conf)));
+	logf((_P("selector_mode = 0x%x\n"), sha204_config_selector_mode(conf)));
 }
 
 static void
