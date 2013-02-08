@@ -1,5 +1,5 @@
-#ifndef usb_serial_h__
-#define usb_serial_h__
+#ifndef usb_dbg_only_h__
+#define usb_dbg_only_h__
 
 #include <stdint.h>
 

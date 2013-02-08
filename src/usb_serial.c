@@ -642,6 +642,8 @@ void usb_serial_flush_output(void)
 static int
 _usb_putc(char c, FILE *fp)
 {
+	if (c == '\r')
+		usb_serial_putchar('\n');
 	usb_serial_putchar(c);
 	return 0;
 }
@@ -659,7 +661,10 @@ _usb_getc(FILE *fp)
 			return EOF;
 	}
 	if (usb_get_echo)
-		usb_serial_putchar(rv);
+		_usb_putc(rv, NULL);
+	if (rv == '\r')
+		return '\n';
+
 	return rv;
 }
 

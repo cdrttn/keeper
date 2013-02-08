@@ -1,12 +1,13 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <avr/pgmspace.h>
+#include <avr/power.h>
 #include <util/delay.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "usb_debug_only.h"
+//#include "usb_debug_only.h"
 #include "print.h"
 #include "ff.h"
 #include "diskio.h"
@@ -22,29 +23,23 @@
 #include "vfs_crypt.h"
 #include "accdb.h"
 #include "sha204_util.h"
+#include "hd44780.h"
+#include "usb_serial.h"
 
 static void cmd_free(const char **argv, uint8_t argc);
-static int
-dbg_putc(char c, FILE *f)
-{
-	usb_debug_putchar(c);
-	return 0;
-}
-
-static FILE dbg_stdout = FDEV_SETUP_STREAM(dbg_putc, NULL, _FDEV_SETUP_WRITE);
 
 DWORD
 get_fattime(void)
 {
 	return 0;
 }
-#define CPU_PRESCALE(n)	(CLKPR = 0x80, CLKPR = (n))
 
 ISR(TIMER1_COMPA_vect)
 {
 	disk_timerproc();
 }
 
+#if 0
 static inline uint8_t
 kbgetch(void)
 {
@@ -77,6 +72,7 @@ kbgets(char *buf, size_t amt, uint8_t echo)
 
 	return buf;
 }
+#endif
 
 static void
 hexdump(const void *buf, size_t amt)
@@ -568,9 +564,30 @@ map_command(const char **argv, int argc)
 		printf_P(PSTR("Unknown command '%s'\n"), cmd);
 }
 
+uint16_t
+analog_read(uint8_t p)
+{
+	uint8_t high, low;
+
+	ADCSRA = _BV(ADEN);
+	ADCSRB = p & 0x20;
+
+	ADMUX = _BV(REFS0) | (p & 0x1f);
+
+	ADCSRA |= _BV(ADSC);
+	while (bit_is_set(ADCSRA, ADSC))
+		;
+
+	low = ADCL;
+	high = ADCH;
+
+	return (high << 8) | low;
+}
+
 int
 main(void)
 {
+#if 0
 	FRESULT rv;
 	FATFS vol;
 	char ln[64];
@@ -591,14 +608,9 @@ main(void)
 	TIMSK1 = _BV(OCIE1A);
 	sei();
 
-	// initialize the USB, but don't want for the host to
-	// configure.  The first several messages sent will be
-	// lost because the PC hasn't configured the USB yet,
-	// but we care more about blinking than debug messages!
-	usb_init();
+	//usb_init();
 
-	_delay_ms(2000);
-	
+	//_delay_ms(2000);
 	rv = f_mount(0, &vol);
 	if (rv != FR_OK) {
 		print("failed to mount!\n");
@@ -635,7 +647,38 @@ main(void)
 			map_command(argv, argc);
 		//print("1.HERE\n");
 	}
+#endif
+	clock_prescale_set(clock_div_1);
 
+	lcd_backlight_on();
+	sei();
+	usb_init();
+	lcd_init();
+	lcd_set_cursor(1, 1);
+	fprintf_P(&lcd_stdout, _P("HELLO World!"));
+	unsigned a = 0;
+
+	while (!usb_configured())
+		;
+
+	lcd_backlight_level_set(a);
+	usb_get_echo = 1;
+	while (1) {
+		if (usb_configured() && (usb_serial_get_control() & USB_SERIAL_DTR)) {
+			char buf[16];
+
+			fprintf_P(&usb_stdout, _P("Bright: "));
+			if (fgets(buf, sizeof(buf), &usb_stdin) &&
+			    sscanf(buf, "%u", &a) == 1) {
+				fprintf_P(&usb_stdout, _P("Enter: %u\r"), a);
+			}
+			if (a != lcd_backlight_level_get()) {
+				lcd_set_cursor(1, 2);
+				fprintf_P(&lcd_stdout, _P("Bright: %03u"), a & 0xff);
+				lcd_backlight_level_set(a);
+			}
+		}
+	}
 	return 0;
 }
 
