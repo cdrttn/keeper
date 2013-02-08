@@ -14,7 +14,7 @@
 */
 
 #ifdef BUILD_AVR
-#define TEST_FLUSH() usb_debug_flush_output()
+#define TEST_FLUSH() usb_serial_flush_output()
 #else
 #define TEST_FLUSH()
 #endif

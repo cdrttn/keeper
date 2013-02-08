@@ -84,15 +84,15 @@ CRYPTO_SRC = \
 	#avrcrypto/serpent-sboxes-bitslice-asm.S \
 
 SHA204_SRC = \
+	sha204/uart_phys.c \
 	sha204/sha204_util.c \
-	sha204/bitbang_phys.c \
 	sha204/sha204_comm.c \
 	sha204/sha204_comm_marshaling.c \
 	sha204/sha204_swi.c \
 	sha204/timer_utilities.c \
 	#sha204/i2c_phys.c \
 	#sha204/sha204_i2c.c \
-	#sha204/uart_phys.c \
+	#sha204/bitbang_phys.c \
 
 
 # List C source files here. (C dependencies are automatically generated.)

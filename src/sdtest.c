@@ -8,7 +8,6 @@
 #include <stdlib.h>
 #include <string.h>
 //#include "usb_debug_only.h"
-#include "print.h"
 #include "ff.h"
 #include "diskio.h"
 #include "keyboard.h"
@@ -64,15 +63,21 @@ kbgets(char *buf, size_t amt, uint8_t echo)
 		} else
 			*p++ = (char)c;
 		if (echo)
-			pchar(c);
+			putchar(c);
 	}
 	*p = '\0';
 	if (echo)
-		pchar('\n');
+		putchar('\n');
 
 	return buf;
 }
 #endif
+
+static inline void
+phex(uint8_t c)
+{
+	printf_P(_P("%02x"), c);
+}
 
 static void
 hexdump(const void *buf, size_t amt)
@@ -82,11 +87,11 @@ hexdump(const void *buf, size_t amt)
 
 	for (i = 0; i < amt; ++i) {
 		if ((i % 16) == 0)
-			pchar('\n');
+			putchar('\n');
 		phex(b[i]);
-		pchar(' ');
+		putchar(' ');
 	}
-	pchar(' ');
+	putchar(' ');
 }
 
 #define MAXPATH 64
@@ -98,7 +103,7 @@ cmd_cd(const char **argv, uint8_t argc)
 	FRESULT rv;
 
 	if (argc != 2) {
-		print("ARGS: cd <path>\n");
+		puts_P(_P("ARGS: cd <path>\n"));
 		return;
 	}
 
@@ -108,6 +113,7 @@ cmd_cd(const char **argv, uint8_t argc)
 		return;
 	}
 	f_getcwd(current_path, sizeof(current_path));
+	putchar('\n');
 }
 
 static void
@@ -119,7 +125,7 @@ cmd_cat(const char **argv, uint8_t argc)
 	char buf[64];
 
 	if (argc != 2) {
-		print("ARGS: cat <path>\n");
+		puts_P(_P("ARGS: cat <path>\n"));
 		return;
 	}
 
@@ -159,7 +165,7 @@ cmd_sha1(const char **argv, uint8_t argc)
 	for (i = 0; i < sizeof(hash); ++i) {
 		logf((_P("%02x"), (unsigned)hash[i]));
 	}
-	pchar('\n');
+	putchar('\n');
 }
 
 static void
@@ -185,7 +191,7 @@ cmd_rand(const char **argv, uint8_t argc)
 		logf((_P("failed to get rand bytes\n")));
 	else {
 		hexdump(buf, len);
-		pchar('\n');
+		putchar('\n');
 	}
 	
 	free(buf);
@@ -213,7 +219,7 @@ cmd_pbkdf2(const char **argv, uint8_t argc)
 	for (i = 0; i < sizeof(hash); ++i) {
 		logf((_P("%02x"), (unsigned)hash[i]));
 	}
-	pchar('\n');
+	putchar('\n');
 }
 
 static void
@@ -257,14 +263,14 @@ cmd_aes(const char **argv, uint8_t argc)
 		goto out;
 	}
 	//hexdump(c, 512);
-	//pchar('\n');
+	//putchar('\n');
 	rv = crypto_cipher_sector(NULL, key, iv, C_DEC, c, p);
 	if (rv < 0) {
 		logf((_P("decryption failed\n")));
 		goto out;
 	}
 	//hexdump(p, 512);
-	//pchar('\n');
+	//putchar('\n');
 	if (memcmp(p, argv[3], strlen(argv[3]))) {
 		logf((_P("what? failed match\n")));
 		goto out;
@@ -287,7 +293,7 @@ cmd_hd(const char **argv, uint8_t argc)
 	char buf[64];
 
 	if (argc != 4) {
-		print("ARGS: hd <offset> <length> <path>\n");
+		puts_P(_P("ARGS: hd <offset> <length> <path>\n"));
 		return;
 	}
 
@@ -323,12 +329,12 @@ cmd_hd(const char **argv, uint8_t argc)
 		span -= rd;
 		for (off = 0; off < len; ++off) {
 			phex(buf[off]);
-			pchar(' ');
+			putchar(' ');
 			if (!((off+1) % 16))
-				pchar('\n');
+				putchar('\n');
 		}
 	} while (len == rd);
-	pchar('\n');
+	putchar('\n');
 
 out:
 	f_close(&f);
@@ -426,24 +432,24 @@ cmd_sha204(const char **argv, int argc)
 
 	rv = sha204_get_config(conf);
 	if (rv) {
-		print("can't get sha204 config");
+		puts_P(_P("can't get sha204 config"));
 		return;
 	}
 
-	print("serial = ");
+	printf_P(_P("serial = "));
 	p = sha204_config_sn_first(conf);
 	for (i = 0; i < SN_FIRST_LEN; ++i)
 		phex(p[i]);
 	p = sha204_config_sn_last(conf);
 	for (i = 0; i < SN_LAST_LEN; ++i)
 		phex(p[i]);
-	pchar('\n');
+	putchar('\n');
 
-	print("revision = ");
+	printf_P(_P("revision = "));
 	p = sha204_config_rev(conf);
 	for (i = 0; i < REV_LEN; ++i)
 		phex(p[i]);
-	pchar('\n');
+	putchar('\n');
 
 	logf((_P("i2c_enabled = 0x%x\n"), sha204_config_i2c_enabled(conf)));
 	logf((_P("i2c_addr = 0x%x\n"), sha204_config_i2c_addr(conf)));
@@ -510,7 +516,7 @@ cmd_loop(const char **argv, int argc)
 	unsigned long cnt;
 
 	if (argc < 3) {
-		print("ARGS: loop <count> <prog> <arg1> <argn>\n");
+		puts_P(_P("ARGS: loop <count> <prog> <arg1> <argn>"));
 		return;
 	}
 	
@@ -521,6 +527,28 @@ cmd_loop(const char **argv, int argc)
 		map_command(argv + 2, argc - 2);
 		cnt--;
 	}
+}
+
+static void
+cmd_backlight(const char **argv, int argc)
+{
+	uint8_t b;
+
+	if (argc < 2) {
+		puts_P(_P("ARGS: backlight <0-255>"));
+		return;
+	}
+
+	b = atoi(argv[1]);
+	
+	if (b == 0) {
+		lcd_backlight_off();
+	} else {
+		lcd_backlight_on();
+		lcd_backlight_level_set(b);
+	}
+
+	putchar('\n');
 }
 
 static void
@@ -560,6 +588,8 @@ map_command(const char **argv, int argc)
 		cmd_loop(argv, argc);
 	else if (strcmp_P(cmd, _P("sha204")) == 0)
 		cmd_sha204(argv, argc);
+	else if (strcmp_P(cmd, _P("backlight")) == 0)
+		cmd_backlight(argv, argc);
 	else
 		printf_P(PSTR("Unknown command '%s'\n"), cmd);
 }
@@ -587,7 +617,6 @@ analog_read(uint8_t p)
 int
 main(void)
 {
-#if 0
 	FRESULT rv;
 	FATFS vol;
 	char ln[64];
@@ -596,32 +625,32 @@ main(void)
 	int argc;
 	char *p;
 
-	CPU_PRESCALE(0);
-	stdout = &dbg_stdout;
-	stderr = &dbg_stdout;
+	clock_prescale_set(clock_div_1);
+	sei();
 
-	keyboardInit();
+	lcd_backlight_on();
+	sei();
+	usb_init();
+	lcd_init();
+	usb_get_echo = 1;
+
+	stdout = &usb_stdout;
+	stderr = &usb_stdout;
+
+	//keyboardInit();
 
 	// set up 100hz tick
 	OCR1A = F_CPU / 256 / 100 - 1;
 	TCCR1B = _BV(WGM12) | _BV(CS12);
 	TIMSK1 = _BV(OCIE1A);
-	sei();
 
-	//usb_init();
-
-	//_delay_ms(2000);
 	rv = f_mount(0, &vol);
 	if (rv != FR_OK) {
-		print("failed to mount!\n");
-		usb_debug_flush_output();
 		abort();
 	}
 
 	rv = f_chdir("/");
 	if (rv != FR_OK) {
-		print("failed to chdir '/'\n");
-		usb_debug_flush_output();
 		abort();
 	}
 	f_getcwd(current_path, sizeof(current_path));
@@ -631,54 +660,31 @@ main(void)
 
 	/// XXX
 	sha204p_init();
+	lcd_backlight_level_set(255);
 
 	while (1) {
 		char *lnp;
 
-		printf_P(PSTR(" %s $ "), current_path);
-		usb_debug_flush_output();
-		kbgets(ln, sizeof(ln), 1);
+		if (!usb_configured() ||
+		    !(usb_serial_get_control() & USB_SERIAL_DTR))
+			continue;
+		printf_P(_P("%s $ "), current_path);
+		if (!fgets(ln, sizeof(ln), &usb_stdin))
+			continue;
+		lnp = strchr(ln, '\n');
+		if (lnp)
+			*lnp = '\0';
+ 
 		argc = 0;
 		lnp = ln;
 		while ((p = strsep(&lnp, " \t")) != NULL && argc < ARGV_MAX) {
-			argv[argc++] = p;
+			if (*p)
+				argv[argc++] = p;
 		}
 		if (argc >= 1 && *argv[0])
 			map_command(argv, argc);
-		//print("1.HERE\n");
 	}
-#endif
-	clock_prescale_set(clock_div_1);
 
-	lcd_backlight_on();
-	sei();
-	usb_init();
-	lcd_init();
-	lcd_set_cursor(1, 1);
-	fprintf_P(&lcd_stdout, _P("HELLO World!"));
-	unsigned a = 0;
-
-	while (!usb_configured())
-		;
-
-	lcd_backlight_level_set(a);
-	usb_get_echo = 1;
-	while (1) {
-		if (usb_configured() && (usb_serial_get_control() & USB_SERIAL_DTR)) {
-			char buf[16];
-
-			fprintf_P(&usb_stdout, _P("Bright: "));
-			if (fgets(buf, sizeof(buf), &usb_stdin) &&
-			    sscanf(buf, "%u", &a) == 1) {
-				fprintf_P(&usb_stdout, _P("Enter: %u\r"), a);
-			}
-			if (a != lcd_backlight_level_get()) {
-				lcd_set_cursor(1, 2);
-				fprintf_P(&lcd_stdout, _P("Bright: %03u"), a & 0xff);
-				lcd_backlight_level_set(a);
-			}
-		}
-	}
 	return 0;
 }
 

@@ -10,6 +10,7 @@
 #include "bcal_cast5.h"
 //#include "cast5.h"
 #include "pbkdf2.h"
+#include "sha204_comm_marshaling.h"
 
 int8_t
 crypto_init(void)
@@ -64,16 +65,24 @@ crypto_cipher_sector(struct cipher *cipher, void *key, void *iv, uint8_t mode,
 int8_t
 crypto_get_rand_bytes(void *buf, size_t amt)
 {
-	uint8_t *tmp = buf;
+	uint8_t txb[RANDOM_COUNT];
+	uint8_t rxb[RANDOM_RSP_SIZE];
+	uint8_t *p = buf;
 
-	// FIXME
-	while (amt >= 4) {
-		memcpy(tmp, "\xde\xad\xbe\xef", 4);
-		tmp += 4;
-		amt -= 4;
+	while (amt >= 32) {
+		if (sha204m_random(txb, rxb,
+		    RANDOM_NO_SEED_UPDATE))
+			return -1;
+		memcpy(p, rxb + 1, 32);
+		p += 32;
+		amt -= 32;
 	}
-	if (amt)
-		memset(tmp, 0xff, amt);
+	if (amt) {
+		if (sha204m_random(txb, rxb,
+		    RANDOM_NO_SEED_UPDATE))
+			return -1;
+		memcpy(p, rxb + 1, amt);
+	}
 
 	return 0;
 }

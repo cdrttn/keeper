@@ -642,8 +642,8 @@ void usb_serial_flush_output(void)
 static int
 _usb_putc(char c, FILE *fp)
 {
-	if (c == '\r')
-		usb_serial_putchar('\n');
+	if (c == '\n')
+		usb_serial_putchar('\r');
 	usb_serial_putchar(c);
 	return 0;
 }
