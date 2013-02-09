@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <alloca.h>
 //#include "usb_debug_only.h"
 #include "ff.h"
 #include "diskio.h"
@@ -48,18 +49,78 @@ kbgetch(void)
 		;
 	return c;
 }
+#endif
+
+enum escape_seq {
+	ESC_NONE,
+	ESC_ESC,
+	ESC_BRACKET,
+};
+enum keys {
+	ESC_SEQ = -8,
+	ARROW_UP = -10,
+	ARROW_DN = -20,
+	ARROW_LT = -30,
+	ARROW_RT = -40,
+};
+static int
+getescape(void)
+{
+	static enum escape_seq state = ESC_NONE;
+	int c;
+
+	c = getchar();
+
+	switch (state) {
+	case ESC_NONE:
+		if (c == 27) {
+			state = ESC_ESC;
+			return ESC_SEQ;
+		}
+		break;
+	case ESC_ESC:
+		if (c == '[') {
+			state = ESC_BRACKET;
+			return ESC_SEQ;
+		}
+		break;
+	case ESC_BRACKET:
+		state = ESC_NONE;
+		switch (c) {
+		case 'A': return ARROW_UP;
+		case 'B': return ARROW_DN;
+		case 'C': return ARROW_RT;
+		case 'D': return ARROW_LT;
+		}
+		break;
+	}
+	
+	return c;
+}
 
 static const char*
-kbgets(char *buf, size_t amt, uint8_t echo)
+getline(char *buf, size_t amt, uint8_t echo)
 {
 	char *p = buf;
 	char *end = buf + amt - 1;
-	uint8_t c = 0;
+	int c = 0;
 
-	while (p < end && (c = kbgetch()) != '\r') {
-		if (c == BS) {
+	while (p < end && (c = getchar()) != '\r') {
+		if (c == EOF)
+			return NULL;
+#if 0
+		if (c < 0) {
+			lcd_set_cursor(0, 3);
+			fprintf_P(&lcd_stdout, _P("B: %04i"), c);
+			continue;
+		}
+#endif
+		if (c == 0x7f) {
+			c = '\b';
 			if (p > buf)
 				p--;
+			else
+				echo = 0;
 		} else
 			*p++ = (char)c;
 		if (echo)
@@ -71,7 +132,6 @@ kbgets(char *buf, size_t amt, uint8_t echo)
 
 	return buf;
 }
-#endif
 
 static inline void
 phex(uint8_t c)
@@ -455,6 +515,18 @@ cmd_sha204(const char **argv, int argc)
 	logf((_P("i2c_addr = 0x%x\n"), sha204_config_i2c_addr(conf)));
 	logf((_P("otp_mode = 0x%x\n"), sha204_config_otp_mode(conf)));
 	logf((_P("selector_mode = 0x%x\n"), sha204_config_selector_mode(conf)));
+
+	if (argc >= 2 && strcmp_P(argv[1], _P("lock")) == 0) {
+		uint8_t *rxb, *txb;
+	
+		txb = alloca(LOCK_COUNT);
+		rxb = alloca(LOCK_RSP_SIZE);
+		puts_P(_P("Locking config..."));
+		// XXX set ignore CRC, bit 7
+		if (sha204m_lock(txb, rxb, _BV(7), 0)) {
+			puts_P(_P("Failed to lock sha204 config"));
+		}
+	}
 }
 
 static void
@@ -530,22 +602,93 @@ cmd_loop(const char **argv, int argc)
 }
 
 static void
-cmd_backlight(const char **argv, int argc)
+cmd_lcd(const char **argv, int argc)
 {
-	uint8_t b;
+	int b;
 
 	if (argc < 2) {
-		puts_P(_P("ARGS: backlight <0-255>"));
+		puts_P(_P("ARGS: lcd <backlight|clear|puts>"));
 		return;
 	}
 
-	b = atoi(argv[1]);
-	
-	if (b == 0) {
-		lcd_backlight_off();
-	} else {
-		lcd_backlight_on();
-		lcd_backlight_level_set(b);
+
+	if (!strcmp_P(argv[1], _P("backlight"))) {
+		if (argc < 3 || (b = atoi(argv[2])) > 0xff) {
+			puts_P(_P("ARGS: lcd backlight 0-255"));
+			return;
+		}
+		if (b == 0) {
+			lcd_backlight_off();
+		} else {
+			lcd_backlight_on();
+			lcd_backlight_level_set(b);
+		}
+	} else if (!strcmp_P(argv[1], _P("clear"))) {
+		lcd_command(LCD_CLEAR);
+	} else if (!strcmp_P(argv[1], _P("puts"))) {
+		uint8_t x, y;
+		if (argc < 5) {
+			puts_P(_P("ARGS: lcd puts x y str"));
+			return;
+		}
+		x = atoi(argv[2]);
+		y = atoi(argv[3]);
+		lcd_set_cursor(x, y);
+		fputs(argv[4], &lcd_stdout);
+	} else if (!strcmp_P(argv[1], _P("mode"))) {
+		if (argc < 3) {
+			puts_P(_P("ARGS: lcd mode <rcurs|lcurs|rshift|lshift>"));
+			return;
+		}
+		if (!strcmp_P(argv[2], _P("rcurs"))) {
+			lcd_command(LCD_ENTRY_CURSOR_RIGHT);
+		} else if (!strcmp_P(argv[2], _P("lcurs"))) {
+			lcd_command(LCD_ENTRY_CURSOR_LEFT);
+		} else if (!strcmp_P(argv[2], _P("rshift"))) {
+			lcd_command(LCD_ENTRY_SHIFT_RIGHT);
+		} else if (!strcmp_P(argv[2], _P("lshift"))) {
+			lcd_command(LCD_ENTRY_SHIFT_LEFT);
+		}
+	} else if (!strcmp_P(argv[1], _P("entry"))) {
+		uint8_t width, start;
+		struct entry ent;
+		int c;
+
+		if (argc < 4) {
+			puts_P(_P("ARGS: lcd entry width start buf"));
+			return;
+		}
+		width = atoi(argv[2]);
+		start = atoi(argv[3]);
+		lcd_entry_init(&ent, argv[4], strlen(argv[4]), 0, 0, width);
+		ent.size_current = strlen(argv[4]);
+		ent.pos = start;
+		lcd_command(LCD_ON_CURSOR_BLINK);
+		lcd_entry_render(&ent);
+		while ((c = getescape()) != '\r' && c != EOF) {
+			switch (c) {
+			case ESC_SEQ:
+				break;
+			case ARROW_UP:
+				break;
+			case ARROW_DN:
+				break;
+			case ARROW_LT:
+				lcd_entry_left(&ent);
+				break;
+			case ARROW_RT:
+				lcd_entry_right(&ent);
+				break;
+			case 127:
+				lcd_entry_backspace(&ent);
+				break;
+			default:
+				lcd_entry_putc(&ent, c);
+				break;
+			}
+			lcd_entry_render(&ent);
+		}
+		lcd_command(LCD_ON);
 	}
 
 	putchar('\n');
@@ -588,8 +731,8 @@ map_command(const char **argv, int argc)
 		cmd_loop(argv, argc);
 	else if (strcmp_P(cmd, _P("sha204")) == 0)
 		cmd_sha204(argv, argc);
-	else if (strcmp_P(cmd, _P("backlight")) == 0)
-		cmd_backlight(argv, argc);
+	else if (strcmp_P(cmd, _P("lcd")) == 0)
+		cmd_lcd(argv, argc);
 	else
 		printf_P(PSTR("Unknown command '%s'\n"), cmd);
 }
@@ -632,10 +775,12 @@ main(void)
 	sei();
 	usb_init();
 	lcd_init();
-	usb_get_echo = 1;
 
+	lcd_set_cursor(0,0);
+	fputs("I'm on baby", &lcd_stdout);
 	stdout = &usb_stdout;
 	stderr = &usb_stdout;
+	stdin = &usb_stdin;
 
 	//keyboardInit();
 
@@ -669,12 +814,8 @@ main(void)
 		    !(usb_serial_get_control() & USB_SERIAL_DTR))
 			continue;
 		printf_P(_P("%s $ "), current_path);
-		if (!fgets(ln, sizeof(ln), &usb_stdin))
+		if (!getline(ln, sizeof(ln), 1))
 			continue;
-		lnp = strchr(ln, '\n');
-		if (lnp)
-			*lnp = '\0';
- 
 		argc = 0;
 		lnp = ln;
 		while ((p = strsep(&lnp, " \t")) != NULL && argc < ARGV_MAX) {

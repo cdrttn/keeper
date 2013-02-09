@@ -21,7 +21,6 @@ void usb_serial_flush_output(void);	// immediately transmit any buffered output
 
 extern FILE usb_stdout;
 extern FILE usb_stdin;
-extern uint8_t usb_get_echo;
 
 // serial parameters
 uint32_t usb_serial_get_baud(void);	// get the baud rate

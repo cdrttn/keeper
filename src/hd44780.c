@@ -1,5 +1,7 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include <string.h>
+#include <stdio.h>
 #include "hd44780.h"
 //borrow this from the sha204 lib
 #include "delay_x.h"
@@ -146,4 +148,68 @@ uint8_t
 lcd_backlight_level_get(void)
 {
 	return OCR0A;
+}
+
+void
+lcd_entry_init(struct entry *ent, char *buf, size_t size,
+	       uint8_t x, uint8_t y, uint8_t width)
+{
+	memset(ent, 0, sizeof(*ent));
+	ent->buf = buf;
+	ent->size = size;
+	ent->x = x;
+	ent->y = y;
+	ent->width = width;
+}
+
+void
+lcd_entry_render(const struct entry *ent)
+{
+	size_t i;
+	uint8_t col;
+
+	lcd_set_cursor(ent->x, ent->y);
+	for (col = 0, i = ent->pos;
+	     i < ent->size_current && col < ent->width;
+	     ++i, ++col) {
+		fputc(ent->buf[i], &lcd_stdout);
+	}
+	for (; col < ent->width; ++col) {
+		fputc(' ', &lcd_stdout);
+	}
+
+	lcd_set_cursor(ent->x + ent->pos_cursor, ent->y);
+}
+
+void
+lcd_entry_putc(struct entry *ent, char c)
+{
+
+}
+
+void
+lcd_entry_left(struct entry *ent)
+{
+	if (!ent->pos_cursor) {
+		if (ent->pos)
+			ent->pos--;
+	} else {
+		ent->pos_cursor--;
+	}
+}
+
+void
+lcd_entry_right(struct entry *ent)
+{
+	if (ent->pos_cursor + 1 == ent->width) {
+		if (ent->pos + ent->width < ent->size_current)
+			ent->pos++;
+	} else {
+		ent->pos_cursor++;
+	}
+}
+
+void
+lcd_entry_backspace(struct entry *ent)
+{
 }

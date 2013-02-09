@@ -643,12 +643,10 @@ static int
 _usb_putc(char c, FILE *fp)
 {
 	if (c == '\n')
-		usb_serial_putchar('\r');
+		_usb_putc('\r', fp);
 	usb_serial_putchar(c);
 	return 0;
 }
-
-uint8_t usb_get_echo = 0;
 
 static int
 _usb_getc(FILE *fp)
@@ -660,10 +658,6 @@ _usb_getc(FILE *fp)
 		    !(usb_serial_get_control() & USB_SERIAL_DTR))
 			return EOF;
 	}
-	if (usb_get_echo)
-		_usb_putc(rv, NULL);
-	if (rv == '\r')
-		return '\n';
 
 	return rv;
 }
