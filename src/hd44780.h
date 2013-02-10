@@ -88,5 +88,6 @@ void lcd_entry_putc(struct entry *ent, char c);
 void lcd_entry_left(struct entry *ent);
 void lcd_entry_right(struct entry *ent);
 void lcd_entry_backspace(struct entry *ent);
+void lcd_entry_delete(struct entry *ent);
 
 #endif // _HD44780_H_
