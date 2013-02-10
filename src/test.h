@@ -24,11 +24,11 @@
 	abort(); 	\
 } while(0)
 
-#ifdef BUILD_AVR
-#define AFMT "'%S' MEM %u LINE %u: "
-#else
+//#ifdef BUILD_AVR
+//#define AFMT "'%S' MEM %u LINE %u: "
+//#else
 #define AFMT "'%s' LINE %u: "
-#endif
+//#endif
 
 #ifdef TEST_ASSERT
 #define v_assert(a) assert(a)
@@ -38,7 +38,7 @@
 
 #define v_assert(a) \
 do {							\
-	logf((_P("ASSERT "AFMT), _P(#a), getFreeMemory(), __LINE__));	\
+	logf((_P("ASSERT "AFMT), _P(#a), __LINE__));	\
 	if ((a)) {					\
 		logf((_P("OK\n")));			\
 	} else {					\
@@ -52,7 +52,7 @@ do {							\
 #define v_assert(a) \
 do {							\
 	if (!(a)) {					\
-		logf((_P("ASSERT FAIL "AFMT), _P(#a), getFreeMemory(), __LINE__));	\
+		logf((_P("ASSERT FAIL "AFMT), _P(#a), __LINE__));	\
 		logf((_P("FAIL\n")));			\
 		TEST_ABORT();				\
 	}						\

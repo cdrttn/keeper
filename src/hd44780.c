@@ -2,6 +2,7 @@
 #include <avr/interrupt.h>
 #include <string.h>
 #include <stdio.h>
+#include "test.h"
 #include "hd44780.h"
 //borrow this from the sha204 lib
 #include "delay_x.h"
@@ -172,7 +173,10 @@ lcd_entry_render(const struct entry *ent)
 	for (col = 0, i = ent->pos;
 	     i < ent->size_current && col < ent->width;
 	     ++i, ++col) {
-		fputc(ent->buf[i], &lcd_stdout);
+		if (ent->passwd)
+			fputc('*', &lcd_stdout);
+		else
+			fputc(ent->buf[i], &lcd_stdout);
 	}
 	for (; col < ent->width; ++col) {
 		fputc(' ', &lcd_stdout);
@@ -223,6 +227,24 @@ lcd_entry_backspace(struct entry *ent)
 
 	ent->size_current--;
 	lcd_entry_left(ent);
+}
+
+void
+lcd_entry_delete(struct entry *ent)
+{
+	size_t pos = ent->pos + ent->pos_cursor;
+
+	if (pos == ent->size_current)
+		return;
+
+	if (pos < ent->size_current) {
+		// shift chars left 1 byte
+		memmove(ent->buf + pos,
+			ent->buf + pos + 1,
+			ent->size_current - pos);
+	}
+
+	ent->size_current--;
 }
 
 void

@@ -76,6 +76,8 @@ struct entry {
 	uint8_t width;
 	// position of cursor within the entry on screen
 	uint8_t pos_cursor;
+	// password mode, hide chars
+	uint8_t passwd:1;
 };
 
 void lcd_entry_init(struct entry *ent, char *buf, size_t size,

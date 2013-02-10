@@ -55,6 +55,7 @@ enum escape_seq {
 	ESC_NONE,
 	ESC_ESC,
 	ESC_BRACKET,
+	ESC_3,
 };
 enum keys {
 	ESC_SEQ = -8,
@@ -62,6 +63,7 @@ enum keys {
 	ARROW_DN = -20,
 	ARROW_LT = -30,
 	ARROW_RT = -40,
+	DEL_KEY = -50
 };
 static int
 getescape(void)
@@ -91,7 +93,15 @@ getescape(void)
 		case 'B': return ARROW_DN;
 		case 'C': return ARROW_RT;
 		case 'D': return ARROW_LT;
+		case '3':
+			state = ESC_3;
+			return ESC_SEQ;
 		}
+		break;
+	case ESC_3:
+		state = ESC_NONE;
+		if (c == '~')
+			return DEL_KEY;
 		break;
 	}
 	
@@ -656,7 +666,7 @@ cmd_lcd(const char **argv, int argc)
 		int c;
 
 		if (argc < 6 || (b = atoi(argv[5])) <= 0) {
-			puts_P(_P("ARGS: lcd entry width start buf max"));
+			puts_P(_P("ARGS: lcd entry width start buf max [pw]"));
 			return;
 		}
 		buf = alloca(b);
@@ -664,9 +674,13 @@ cmd_lcd(const char **argv, int argc)
 		memcpy(buf, argv[4], strlen(argv[4]));
 		width = atoi(argv[2]);
 		start = atoi(argv[3]);
-		lcd_entry_init(&ent, buf, b, 0, 0, width);
+		lcd_set_cursor(0, 0);
+		fprintf_P(&lcd_stdout, _P("IN: "));
+		lcd_entry_init(&ent, buf, b, 4, 0, width);
 		ent.size_current = strlen(argv[4]);
 		ent.pos = start;
+		if (argc > 6)
+			ent.passwd = 1;
 		lcd_command(LCD_ON_CURSOR_BLINK);
 		lcd_entry_render(&ent);
 		while ((c = getescape()) != '\r' && c != EOF) {
@@ -685,6 +699,9 @@ cmd_lcd(const char **argv, int argc)
 				break;
 			case 127:
 				lcd_entry_backspace(&ent);
+				break;
+			case DEL_KEY:
+				lcd_entry_delete(&ent);
 				break;
 			default:
 				lcd_entry_putc(&ent, c);
