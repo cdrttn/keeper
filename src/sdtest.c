@@ -652,15 +652,19 @@ cmd_lcd(const char **argv, int argc)
 	} else if (!strcmp_P(argv[1], _P("entry"))) {
 		uint8_t width, start;
 		struct entry ent;
+		char *buf;
 		int c;
 
-		if (argc < 4) {
-			puts_P(_P("ARGS: lcd entry width start buf"));
+		if (argc < 6 || (b = atoi(argv[5])) <= 0) {
+			puts_P(_P("ARGS: lcd entry width start buf max"));
 			return;
 		}
+		buf = alloca(b);
+		memset(buf, 0, b);
+		memcpy(buf, argv[4], strlen(argv[4]));
 		width = atoi(argv[2]);
 		start = atoi(argv[3]);
-		lcd_entry_init(&ent, argv[4], strlen(argv[4]), 0, 0, width);
+		lcd_entry_init(&ent, buf, b, 0, 0, width);
 		ent.size_current = strlen(argv[4]);
 		ent.pos = start;
 		lcd_command(LCD_ON_CURSOR_BLINK);
@@ -686,8 +690,20 @@ cmd_lcd(const char **argv, int argc)
 				lcd_entry_putc(&ent, c);
 				break;
 			}
+			lcd_set_cursor(0, 2);
+			fprintf_P(&lcd_stdout,
+				  _P("sz |szc|ps |psc"));
+			lcd_set_cursor(0, 3);
+			fprintf_P(&lcd_stdout,
+				  _P("%03u|%03u|%03u|%03u"),
+				  ent.size, ent.size_current,
+				  ent.pos, ent.pos_cursor);
 			lcd_entry_render(&ent);
 		}
+		putchar('\'');
+		fwrite(buf, ent.size_current, 1, stdout);
+		putchar('\'');
+		putchar('\n');
 		lcd_command(LCD_ON);
 	}
 

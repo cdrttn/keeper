@@ -184,7 +184,45 @@ lcd_entry_render(const struct entry *ent)
 void
 lcd_entry_putc(struct entry *ent, char c)
 {
+	size_t pos = ent->pos + ent->pos_cursor;
 
+	// no more room
+	if (ent->size_current == ent->size)
+		return;
+
+	if (pos == ent->size_current) {
+		// adding to end? just append c
+		ent->buf[ent->size_current] = c;
+	} else {
+		// adding in middle, shift chars after pos
+		// right one byte to make room
+		memmove(ent->buf + pos + 1,
+			ent->buf + pos,
+			ent->size_current - pos);
+		ent->buf[pos] = c;
+	}
+
+	ent->size_current++;
+	lcd_entry_right(ent);
+}
+
+void
+lcd_entry_backspace(struct entry *ent)
+{
+	size_t pos = ent->pos + ent->pos_cursor;
+
+	if (pos == 0)
+		return;
+
+	if (pos < ent->size_current) {
+		// shift chars left 1 byte
+		memmove(ent->buf + pos - 1,
+			ent->buf + pos,
+			ent->size_current - pos);
+	}
+
+	ent->size_current--;
+	lcd_entry_left(ent);
 }
 
 void
@@ -202,14 +240,10 @@ void
 lcd_entry_right(struct entry *ent)
 {
 	if (ent->pos_cursor + 1 == ent->width) {
-		if (ent->pos + ent->width < ent->size_current)
+		if (ent->pos + ent->width < ent->size)
 			ent->pos++;
-	} else {
+	} else if (ent->pos + ent->pos_cursor < ent->size_current) {
 		ent->pos_cursor++;
 	}
 }
 
-void
-lcd_entry_backspace(struct entry *ent)
-{
-}
