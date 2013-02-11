@@ -262,7 +262,7 @@ void
 lcd_entry_right(struct entry *ent)
 {
 	if (ent->pos_cursor + 1 == ent->width) {
-		if (ent->pos + ent->width < ent->size)
+		if (ent->pos + ent->width <= ent->size_current)
 			ent->pos++;
 	} else if (ent->pos + ent->pos_cursor < ent->size_current) {
 		ent->pos_cursor++;
