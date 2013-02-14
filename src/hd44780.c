@@ -269,3 +269,60 @@ lcd_entry_right(struct entry *ent)
 	}
 }
 
+void
+lcd_menu_init(struct menu *menu, uint8_t x, uint8_t y,
+	      uint8_t width, uint8_t height)
+{
+	memset(menu, 0, sizeof(*menu));
+	menu->x = x;
+	menu->y = y;
+	menu->height = height;
+	menu->width = width;
+}
+
+void
+lcd_menu_render(struct menu *menu)
+{
+	const char *label;
+	uint8_t r;
+	uint8_t w;
+
+	for (r = 0; r < menu->height; ++r) {
+		lcd_set_cursor(menu->x, menu->y + r);
+		if (r == menu->row_cursor) {
+			fputc('>', &lcd_stdout);
+		} else {
+			fputc(' ', &lcd_stdout);
+		}
+		label = menu->get_item_text(menu, &menu->items[r]);
+		if (label == NULL) {
+			return;
+		}
+		for (w = 1; *label && w < menu->width; ++w) {
+			fputc(*label++, &lcd_stdout);
+		}
+		for (; w < menu->width; ++w) {
+			fputc(' ', &lcd_stdout);
+		}
+	}
+}
+
+void
+lcd_menu_up(struct menu *menu)
+{
+	if (menu->row_cursor == 0) {
+		menu->on_top_reached(menu);
+		return;
+	}
+	menu->row_cursor--;
+}
+
+void
+lcd_menu_down(struct menu *menu)
+{
+	if (menu->row_cursor == menu->height - 1) {
+		menu->on_bottom_reached(menu);
+		return;
+	}
+	menu->row_cursor++;
+}

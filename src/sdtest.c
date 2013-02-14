@@ -611,10 +611,86 @@ cmd_loop(const char **argv, int argc)
 	}
 }
 
+static const char line_1[] PROGMEM = "This line 1";
+static const char line_2[] PROGMEM = "This line 2";
+static const char line_3[] PROGMEM = "This line 3";
+static const char line_4[] PROGMEM = "This line 4";
+static const char line_5[] PROGMEM = "This line 5";
+static const char line_6[] PROGMEM = "This line 6";
+static const char line_7[] PROGMEM = "This line 7";
+static const char line_8[] PROGMEM = "This line 8";
+static const char line_9[] PROGMEM = "This line 9";
+static const char line_10[] PROGMEM = "This line 10";
+static const char line_11[] PROGMEM = "This line 11";
+
+#define MENU_ITEMS 11
+PGM_P const menu_lines[] PROGMEM = {
+	line_1,
+	line_2,
+	line_3,
+	line_4,
+	line_5,
+	line_6,
+	line_7,
+	line_8,
+	line_9,
+	line_10,
+	line_11
+};
+
+static void
+menu_load(struct menu *menu)
+{
+	size_t pos = *((size_t*)menu->ctx);
+	size_t i;
+
+	for (i = 0; i < menu->height && pos < MENU_ITEMS; ++i) {
+		//printf_P(_P("%u %S\n"), i, (PGM_P)pgm_read_word(&menu_lines[pos]));
+		menu->items[i].ctx = (PGM_P)pgm_read_word(&menu_lines[pos++]);
+	}
+}
+
+static const char *
+test_get_item_text(struct menu *menu, struct menu_item *item)
+{
+	static char tmp[28];
+
+	strcpy_P(tmp, item->ctx);
+	
+	return tmp;
+}
+
+static void
+test_on_bottom_reached(struct menu *menu)
+{
+	size_t *pos = menu->ctx;
+
+	if (*pos + 4 >= MENU_ITEMS)
+		return;
+
+	*pos += 4;
+	menu_load(menu);
+	menu->row_cursor = 0;
+}
+
+static void
+test_on_top_reached(struct menu *menu)
+{
+	size_t *pos = menu->ctx;
+	
+	if (*pos < 4)
+		return;
+
+	*pos -= 4;
+	menu_load(menu);
+	menu->row_cursor = menu->height - 1;
+}
+
 static void
 cmd_lcd(const char **argv, int argc)
 {
 	int b;
+	int c;
 
 	if (argc < 2) {
 		puts_P(_P("ARGS: lcd <backlight|clear|puts>"));
@@ -663,7 +739,6 @@ cmd_lcd(const char **argv, int argc)
 		uint8_t width, start;
 		struct entry ent;
 		char *buf;
-		int c;
 
 		if (argc < 6 || (b = atoi(argv[5])) <= 0) {
 			puts_P(_P("ARGS: lcd entry width start buf max [pw]"));
@@ -686,11 +761,9 @@ cmd_lcd(const char **argv, int argc)
 		while ((c = getescape()) != '\r' && c != EOF) {
 			switch (c) {
 			case ESC_SEQ:
-				break;
 			case ARROW_UP:
-				break;
 			case ARROW_DN:
-				break;
+				continue;
 			case ARROW_LT:
 				lcd_entry_left(&ent);
 				break;
@@ -722,6 +795,32 @@ cmd_lcd(const char **argv, int argc)
 		putchar('\'');
 		putchar('\n');
 		lcd_command(LCD_ON);
+	} else if (!strcmp_P(argv[1], _P("menu"))) {
+		struct menu menu;
+		size_t pos = 0;
+
+		lcd_menu_init(&menu, 0, 0, 20, 4);
+		menu.get_item_text = test_get_item_text;
+		menu.on_bottom_reached = test_on_bottom_reached;
+		menu.on_top_reached = test_on_top_reached;
+		menu.ctx = &pos;		
+		menu_load(&menu);
+		lcd_menu_render(&menu);
+		while ((c = getescape()) != '\r' && c != EOF) {
+			switch (c) {
+			case ARROW_LT:
+			case ARROW_RT:
+			case ESC_SEQ:
+				continue;
+			case ARROW_UP:
+				lcd_menu_up(&menu);
+				break;
+			case ARROW_DN:
+				lcd_menu_down(&menu);
+				break;
+			}
+			lcd_menu_render(&menu);
+		}
 	}
 
 	putchar('\n');

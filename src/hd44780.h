@@ -90,4 +90,49 @@ void lcd_entry_right(struct entry *ent);
 void lcd_entry_backspace(struct entry *ent);
 void lcd_entry_delete(struct entry *ent);
 
+struct menu_item {
+	void *ctx;
+};
+
+struct menu {
+	// upper left, x coord
+	uint8_t x;
+	// upper left, y coord
+	uint8_t y;
+	// height of the menu
+	uint8_t height;
+	// width of menu
+	uint8_t width;
+	// the row of the cursor
+	uint8_t row_cursor;
+#define MAX_ROWS 4
+	// cache of items 
+	struct menu_item items[MAX_ROWS];
+	// context for the menu
+	void *ctx;
+
+	// return the item text, or null if empty item
+	const char *(*get_item_text)(struct menu *, struct menu_item *);
+
+	// called when the cursor bumps into the bottom. the callback could
+	// consider loading another screenful of items into the menu and
+	// reseting the cursor. 
+	void (*on_bottom_reached)(struct menu *);
+
+	// called when the cursor bumps into top, and likewise.
+	void (*on_top_reached)(struct menu *);
+};
+
+void lcd_menu_init(struct menu *menu, uint8_t x, uint8_t y,
+	           uint8_t width, uint8_t height);
+void lcd_menu_render(struct menu *menu);
+void lcd_menu_up(struct menu *menu);
+void lcd_menu_down(struct menu *menu);
+
+static inline struct menu_item *
+lcd_menu_get_current_item(struct menu *mnu)
+{
+	return &mnu->items[mnu->row_cursor];
+}
+
 #endif // _HD44780_H_
