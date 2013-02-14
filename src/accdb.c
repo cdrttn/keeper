@@ -971,12 +971,12 @@ accdb_index_init(struct accdb *db, struct accdb_index *idx)
 	return 0;
 }
 
-// construct and id from an index as follows:
+// construct an id from an index as follows:
 // 	id = (sector_of_rec << 16) | off_of_rec_in_page
 int8_t
 accdb_index_to_id(struct accdb_index *idx, accdb_id_t *id)
 {
-	if (idx->buf == NULL) {
+	if (idx->db == NULL || idx->buf == NULL) {
 		return -1;
 	}
 
@@ -1127,6 +1127,26 @@ blob_list_find(struct accdb *db, const void **data, size_t *size,
 	}
 
 	return NULL;
+}
+
+int8_t
+accdb_index_get_brief(struct accdb_index *idx, const char **brief)
+{
+	const char *user, *pass;
+	uint16_t ptr;
+
+	if (idx->rec == NULL || !accdb_index_has_entry(idx))
+		return -1;
+
+	if (index_rec_get_extended(idx->rec)) {
+		if (index_rec_parse_extended(idx->rec, brief, &ptr) < 0)
+			return -1;
+	} else {
+		if (index_rec_parse(idx->rec, brief, &user, &pass) < 0)
+			return -1;
+	}
+
+	return 0;
 }
 
 int8_t
@@ -1605,6 +1625,8 @@ test_accdb(struct accdb *db)
 		v_assert(strcmp(brief, briefp) == 0);
 		v_assert(strcmp(user, userp) == 0);
 		v_assert(strcmp(pass, passp) == 0);
+		v_assert(accdb_index_get_brief(&idx, &briefp) == 0);
+		v_assert(strcmp(brief, briefp) == 0);
 		v_assert(accdb_index_to_id(&idx, &id[i]) == 0);
 	}
 

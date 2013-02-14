@@ -56,6 +56,8 @@ int8_t accdb_close(struct accdb *db);
 
 int8_t accdb_index_init(struct accdb *db, struct accdb_index *idx);
 void accdb_index_clear(struct accdb_index *idx);
+int8_t accdb_index_to_id(struct accdb_index *idx, accdb_id_t *id);
+int8_t accdb_index_from_id(struct accdb *db, struct accdb_index *idx, accdb_id_t id);
 uint8_t accdb_index_has_entry(struct accdb_index *idx);
 int8_t accdb_index_next(struct accdb_index *idx);
 int8_t accdb_index_prev(struct accdb_index *idx);
