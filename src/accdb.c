@@ -6,51 +6,7 @@
 #include "intop.h"
 #include "accdb.h"
 #include "vfs.h"
-#include "pool.h"
 #include "test.h"
-
-struct accdb;
-
-struct sector {
-	uint8_t dirty:1;
-	uint8_t empty:1;
-	uint16_t refcount;
-	uint16_t sector;
-	uint8_t *buf;
-	struct sector *prev, *next;
-};
-
-enum cache_strategy {
-	CACHE_LRU,
-	CACHE_MRU
-};
-struct accdb {
-	struct file *fp;
-	struct pool *pool;
-	struct cleanup cleanup;
-	uint8_t strategy:1;
-	uint8_t run_init:1;
-	uint16_t sect_start;
-	uint16_t sect_end;
-#define ACCDB_CACHE_SIZE 8
-	struct sector cache[ACCDB_CACHE_SIZE];
-	struct sector *mru;
-	struct sector *lru;
-#ifdef CACHE_MEASURE
-	uint32_t cache_hits;
-	uint32_t cache_misses;
-#endif
-};
-
-struct accdb_index {
-	struct accdb *db;
-	uint8_t *buf;
-	uint8_t *blob_user;
-	uint8_t *blob_pass;
-	uint8_t *blob_note;
-	uint8_t *rec;
-	uint8_t before_beginning:1;
-};
 
 #define SECT_TYPE_INDEX		0xf
 #define SECT_TYPE_BLOB		0xe
@@ -1015,6 +971,43 @@ accdb_index_init(struct accdb *db, struct accdb_index *idx)
 	return 0;
 }
 
+// construct and id from an index as follows:
+// 	id = (sector_of_rec << 16) | off_of_rec_in_page
+int8_t
+accdb_index_to_id(struct accdb_index *idx, accdb_id_t *id)
+{
+	if (idx->buf == NULL) {
+		return -1;
+	}
+
+	*id = ((uint32_t)accdb_cache_sector(idx->buf) << 16);
+	*id |= (idx->rec - idx->buf);
+
+	return 0;
+}
+
+// reverse the above process
+int8_t
+accdb_index_from_id(struct accdb *db, struct accdb_index *idx, accdb_id_t id)
+{
+	accdb_index_clear(idx);
+	idx->db = db;
+	idx->buf = accdb_cache_get(idx->db, id >> 16);
+	if (idx->buf == NULL)
+		return -1;
+
+	if (buf_get_type(idx->buf) != SECT_TYPE_INDEX)
+		return -1;
+
+	idx->rec = idx->buf + (id & 0xffff);
+
+	if (idx->rec < buf_get_payload(idx->buf) ||
+	    idx->rec > buf_get_end(idx->buf))
+		return -1;
+
+	return 0;
+}
+
 uint8_t
 accdb_index_has_entry(struct accdb_index *idx)
 {
@@ -1590,11 +1583,16 @@ test_accdb(struct accdb *db)
 	char *bigbuf;
 	const char *briefp, *userp, *passp;
 	struct accdb_index idx;
+	accdb_id_t *id;
 	const void *note;
 	size_t size;
 
 	bigbuf = (char*)pool_allocate_block(db->pool, NULL);
 	v_assert(bigbuf != NULL);
+
+	// sizeof(accdb_id_t) == 4
+	// 4 * 128 == 512
+	id = (accdb_id_t *)bigbuf;
 
 	memset(&idx, 0, sizeof(struct accdb_index));
 	
@@ -1607,9 +1605,21 @@ test_accdb(struct accdb *db)
 		v_assert(strcmp(brief, briefp) == 0);
 		v_assert(strcmp(user, userp) == 0);
 		v_assert(strcmp(pass, passp) == 0);
-		//accdb_cache_print(db, 1);
+		v_assert(accdb_index_to_id(&idx, &id[i]) == 0);
 	}
 
+	for (i = 0; i < 128; ++i) {
+		sprintf(brief, "BRIEF%u", (unsigned)i);
+		sprintf(user, "USER%u", (unsigned)i);
+		sprintf(pass, "PASS%u", (unsigned)i);
+		v_assert(accdb_index_from_id(db, &idx, id[i]) == 0);
+		v_assert(accdb_index_get_entry(&idx, &briefp, &userp, &passp) == 0);
+		v_assert(strcmp(brief, briefp) == 0);
+		v_assert(strcmp(user, userp) == 0);
+		v_assert(strcmp(pass, passp) == 0);
+	}
+
+	memset(bigbuf, 0, VFS_SECT_SIZE);
 	v_assert(accdb_index_init(db, &idx) == 0);
 
 	i = 0;
