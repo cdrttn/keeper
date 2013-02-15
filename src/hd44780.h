@@ -90,10 +90,6 @@ void lcd_entry_right(struct entry *ent);
 void lcd_entry_backspace(struct entry *ent);
 void lcd_entry_delete(struct entry *ent);
 
-struct menu_item {
-	void *ctx;
-};
-
 struct menu {
 	// upper left, x coord
 	uint8_t x;
@@ -101,38 +97,58 @@ struct menu {
 	uint8_t y;
 	// height of the menu
 	uint8_t height;
+	// max number of items that can fit on screen
+	uint8_t max_items;
 	// width of menu
 	uint8_t width;
 	// the row of the cursor
 	uint8_t row_cursor;
 #define MAX_ROWS 4
 	// cache of items 
-	struct menu_item items[MAX_ROWS];
+	void *items[MAX_ROWS];
 	// context for the menu
 	void *ctx;
+	// flag, menu must be repainted fully if dirty = 1
+	uint8_t dirty:1;
 
 	// return the item text, or null if empty item
-	const char *(*get_item_text)(struct menu *, struct menu_item *);
+	const char *(*get_item_text)(struct menu *, void *);
 
 	// called when the cursor bumps into the bottom. the callback could
 	// consider loading another screenful of items into the menu and
-	// reseting the cursor. 
+	// reseting the cursor to the top.
 	void (*on_bottom_reached)(struct menu *);
 
 	// called when the cursor bumps into top, and likewise.
 	void (*on_top_reached)(struct menu *);
 };
 
+struct menu_item {
+	const char *text;
+	size_t index;
+};
+
 void lcd_menu_init(struct menu *menu, uint8_t x, uint8_t y,
 	           uint8_t width, uint8_t height);
+void lcd_menu_init_array(struct menu *menu, uint8_t x, uint8_t y,
+		         uint8_t width, uint8_t height,
+		         const struct menu_item *items);
 void lcd_menu_render(struct menu *menu);
 void lcd_menu_up(struct menu *menu);
 void lcd_menu_down(struct menu *menu);
+void lcd_menu_clear(struct menu *menu);
+void lcd_menu_add_item(struct menu *menu, void *item);
 
-static inline struct menu_item *
+static inline void *
 lcd_menu_get_current_item(struct menu *mnu)
 {
-	return &mnu->items[mnu->row_cursor];
+	return mnu->items[mnu->row_cursor];
+}
+
+static inline void
+lcd_menu_dirty(struct menu *mnu)
+{
+	mnu->dirty = 1;
 }
 
 #endif // _HD44780_H_

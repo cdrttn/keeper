@@ -623,68 +623,21 @@ static const char line_9[] PROGMEM = "This line 9";
 static const char line_10[] PROGMEM = "This line 10";
 static const char line_11[] PROGMEM = "This line 11";
 
-#define MENU_ITEMS 11
-PGM_P const menu_lines[] PROGMEM = {
-	line_1,
-	line_2,
-	line_3,
-	line_4,
-	line_5,
-	line_6,
-	line_7,
-	line_8,
-	line_9,
-	line_10,
-	line_11
+static const struct menu_item test_items[] = {
+	{NULL, 0},
+	{line_1, 0},
+	{line_2, 1},
+	{line_3, 2},
+	{line_4, 3},
+	{line_5, 4},
+	{line_6, 5},
+	{line_7, 6},
+	{line_8, 7},
+	{line_9, 8},
+	{line_10, 9},
+	{line_11, 10},
+	{NULL, 0}
 };
-
-static void
-menu_load(struct menu *menu)
-{
-	size_t pos = *((size_t*)menu->ctx);
-	size_t i;
-
-	for (i = 0; i < menu->height && pos < MENU_ITEMS; ++i) {
-		//printf_P(_P("%u %S\n"), i, (PGM_P)pgm_read_word(&menu_lines[pos]));
-		menu->items[i].ctx = (PGM_P)pgm_read_word(&menu_lines[pos++]);
-	}
-}
-
-static const char *
-test_get_item_text(struct menu *menu, struct menu_item *item)
-{
-	static char tmp[28];
-
-	strcpy_P(tmp, item->ctx);
-	
-	return tmp;
-}
-
-static void
-test_on_bottom_reached(struct menu *menu)
-{
-	size_t *pos = menu->ctx;
-
-	if (*pos + 4 >= MENU_ITEMS)
-		return;
-
-	*pos += 4;
-	menu_load(menu);
-	menu->row_cursor = 0;
-}
-
-static void
-test_on_top_reached(struct menu *menu)
-{
-	size_t *pos = menu->ctx;
-	
-	if (*pos < 4)
-		return;
-
-	*pos -= 4;
-	menu_load(menu);
-	menu->row_cursor = menu->height - 1;
-}
 
 static void
 cmd_lcd(const char **argv, int argc)
@@ -797,14 +750,9 @@ cmd_lcd(const char **argv, int argc)
 		lcd_command(LCD_ON);
 	} else if (!strcmp_P(argv[1], _P("menu"))) {
 		struct menu menu;
-		size_t pos = 0;
+		struct menu_item *item;
 
-		lcd_menu_init(&menu, 0, 0, 20, 4);
-		menu.get_item_text = test_get_item_text;
-		menu.on_bottom_reached = test_on_bottom_reached;
-		menu.on_top_reached = test_on_top_reached;
-		menu.ctx = &pos;		
-		menu_load(&menu);
+		lcd_menu_init_array(&menu, 0, 0, 20, 4, test_items);
 		lcd_menu_render(&menu);
 		while ((c = getescape()) != '\r' && c != EOF) {
 			switch (c) {
@@ -821,6 +769,11 @@ cmd_lcd(const char **argv, int argc)
 			}
 			lcd_menu_render(&menu);
 		}
+	
+		item = lcd_menu_get_current_item(&menu);
+		if (item) {
+			printf_P(_P("Item: '%S', '%u'\n"), item->text, item->index);
+		}	
 	}
 
 	putchar('\n');

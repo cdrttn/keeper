@@ -2,6 +2,7 @@
 #include <avr/interrupt.h>
 #include <string.h>
 #include <stdio.h>
+#include <assert.h>
 #include "test.h"
 #include "hd44780.h"
 //borrow this from the sha204 lib
@@ -278,6 +279,80 @@ lcd_menu_init(struct menu *menu, uint8_t x, uint8_t y,
 	menu->y = y;
 	menu->height = height;
 	menu->width = width;
+	menu->dirty = 1;
+}
+
+static void
+menu_load_array(struct menu *menu)
+{
+	struct menu_item *p;
+	uint8_t h;
+
+	lcd_menu_clear(menu);
+
+	for (h = menu->height, p = menu->ctx; h && p->text; ++p, --h) {
+		lcd_menu_add_item(menu, p);
+	}
+
+	lcd_menu_dirty(menu);
+}
+
+static const char *
+menu_get_text(struct menu *menu, void *p)
+{
+	static char tmp[28];
+	struct menu_item *item = p;
+
+	if (item && item->text) {
+		strcpy_P(tmp, item->text);
+		return tmp;
+	}
+
+	return NULL;
+}
+
+static void
+menu_bottom_reached(struct menu *menu)
+{
+	struct menu_item *p;
+	uint8_t h;
+
+	for (h = menu->height, p = menu->ctx; h && p->text; ++p, --h)
+		;
+	if (h)
+		return;
+	menu->row_cursor = 0;
+	menu->ctx = p;
+	menu_load_array(menu);
+}
+
+static void
+menu_top_reached(struct menu *menu)
+{
+	struct menu_item *p;
+	uint8_t h;
+
+	for (h = menu->height, p = menu->ctx; h && p->text; --p, --h)
+		;
+	if (h)
+		return;
+	menu->row_cursor = menu->height - 1;
+	menu->ctx = p;
+	menu_load_array(menu);
+}
+
+
+void
+lcd_menu_init_array(struct menu *menu, uint8_t x, uint8_t y,
+		    uint8_t width, uint8_t height,
+		    const struct menu_item *items)
+{
+	lcd_menu_init(menu, x, y, width, height);
+	menu->ctx = (void *)&items[1];
+	menu->get_item_text = menu_get_text;
+	menu->on_bottom_reached = menu_bottom_reached;
+	menu->on_top_reached = menu_top_reached;
+	menu_load_array(menu);
 }
 
 void
@@ -294,23 +369,40 @@ lcd_menu_render(struct menu *menu)
 		} else {
 			fputc(' ', &lcd_stdout);
 		}
-		label = menu->get_item_text(menu, &menu->items[r]);
-		if (label == NULL) {
-			return;
-		}
-		for (w = 1; *label && w < menu->width; ++w) {
-			fputc(*label++, &lcd_stdout);
-		}
-		for (; w < menu->width; ++w) {
-			fputc(' ', &lcd_stdout);
+		if (menu->dirty) {
+			assert(menu->get_item_text != NULL);
+			label = menu->get_item_text(menu, menu->items[r]);
+			for (w = 1; label && *label && w < menu->width; ++w) {
+				fputc(*label++, &lcd_stdout);
+			}
+			for (; w < menu->width; ++w) {
+				fputc(' ', &lcd_stdout);
+			}
 		}
 	}
+	menu->dirty = 0;
+}
+
+// clears out items, resets item count
+void
+lcd_menu_clear(struct menu *menu)
+{
+	memset(menu->items, 0, sizeof(void*) * MAX_ROWS);
+	menu->dirty = 1;
+	menu->max_items = 0;
+}
+
+void
+lcd_menu_add_item(struct menu *menu, void *item)
+{
+	assert(menu->max_items < menu->height);
+	menu->items[menu->max_items++] = item;
 }
 
 void
 lcd_menu_up(struct menu *menu)
 {
-	if (menu->row_cursor == 0) {
+	if (menu->row_cursor == 0 && menu->on_top_reached) {
 		menu->on_top_reached(menu);
 		return;
 	}
@@ -320,7 +412,8 @@ lcd_menu_up(struct menu *menu)
 void
 lcd_menu_down(struct menu *menu)
 {
-	if (menu->row_cursor == menu->height - 1) {
+	if ((!menu->max_items || menu->row_cursor == menu->max_items - 1) &&
+	    menu->on_bottom_reached) {
 		menu->on_bottom_reached(menu);
 		return;
 	}
