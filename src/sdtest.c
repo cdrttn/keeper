@@ -752,7 +752,9 @@ cmd_lcd(const char **argv, int argc)
 		struct menu menu;
 		struct menu_item *item;
 
-		lcd_menu_init_array(&menu, 0, 0, 20, 4, test_items);
+		lcd_set_cursor(0, 0);
+		fprintf_P(&lcd_stdout, _P("Menu:"));
+		lcd_menu_init_array(&menu, 0, 1, 20, 3, test_items);
 		lcd_menu_render(&menu);
 		while ((c = getescape()) != '\r' && c != EOF) {
 			switch (c) {
