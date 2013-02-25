@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-enum cipher_mode {
+enum cipher_dir {
 	C_DEC,
 	C_ENC
 };

@@ -6,8 +6,10 @@
 *.eep
 *.sym
 *.db
+*.dat
 *.elf
 *.hex
 *.map
 *.lss
 *.swp
+src/build/*
