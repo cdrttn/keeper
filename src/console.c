@@ -6,6 +6,12 @@
 
 #include "keeper.h"
 
+struct console_cmd {
+	void (*cb)(const char **, int);
+	const char *name;
+	const char *help;
+};
+
 enum escape_seq {
 	ESC_NONE,
 	ESC_ESC,
@@ -112,62 +118,69 @@ hexdump(const void *buf, size_t amt)
 	putchar(' ');
 }
 
-#if 0
 #define MAXPATH 64
 static char current_path[MAXPATH] = {0};
 
 static void
-cmd_cd(const char **argv, uint8_t argc)
+cmd_cd(const char **argv, int argc)
 {
 	FRESULT rv;
 
 	if (argc != 2) {
-		puts_P(_P("ARGS: cd <path>\n"));
+		outf("ARGS: cd <path>\r\n");
 		return;
 	}
 
 	rv = f_chdir(argv[1]);
 	if (rv != FR_OK) {
-		printf_P(PSTR("Can't chdir: %u\n"), rv);
+		outf("Can't chdir: %u\r\n", rv);
 		return;
 	}
 	f_getcwd(current_path, sizeof(current_path));
-	putchar('\n');
+	puts("\r");
 }
-#endif
 
-#if 0
 static void
-cmd_cat(const char **argv, uint8_t argc)
+cmd_cat(const char **argv, int argc)
 {
 	FIL f;
 	FRESULT rv;
 	UINT len;
-	char buf[64];
+	char *buf = NULL;
 
 	if (argc != 2) {
-		puts_P(_P("ARGS: cat <path>\n"));
+		outf("ARGS: cat <path>\r\n");
 		return;
 	}
 
 	rv = f_open(&f, argv[1], FA_READ);
 	if (rv != FR_OK) {
-		printf_P(PSTR("Can't open %s: %u\n"), argv[1], rv);
+		outf("Can't open %s: %u\r\n", argv[1], rv);
 		return;
 	}
 
+#define BUF_SZ
+	buf = fast_malloc(128);
+	if (!buf) {
+		outf("Can't alloc buf\r\n");
+		goto out;
+	}
+		
 	do {
 		rv = f_read(&f, buf, sizeof(buf), &len);
 		if (rv != FR_OK) {
-			printf_P(PSTR("Can't read: %u\n"), rv);
+			outf("Can't read: %u\r\n", rv);
 			break;
 		}
 		fwrite(buf, len, 1, stdout);
 	} while (len == sizeof(buf));
 
+out:
+	if (buf)
+		fast_free(buf);
 	f_close(&f);
+#undef BUF_SZ
 }
-#endif
 
 #if 0
 static void
@@ -304,19 +317,18 @@ out:
 	fast_free(c);
 }
 
-#if 0
 static void
-cmd_hd(const char **argv, uint8_t argc)
+cmd_hd(const char **argv, int argc)
 {
 	FIL f;
 	FRESULT rv;
 	UINT len, rd;
 	DWORD start;
 	DWORD span;
-	char buf[64];
+	char *buf = NULL;
 
 	if (argc != 4) {
-		puts_P(_P("ARGS: hd <offset> <length> <path>\n"));
+		outf("ARGS: hd <offset> <length> <path>\r\n");
 		return;
 	}
 
@@ -325,28 +337,35 @@ cmd_hd(const char **argv, uint8_t argc)
 
 	rv = f_open(&f, argv[3], FA_READ);
 	if (rv != FR_OK) {
-		printf_P(PSTR("Can't open %s: %u\n"), argv[3], rv);
+		outf("Can't open %s: %u\r\n", argv[3], rv);
 		return;
 	}
 
 	rv = f_lseek(&f, start);
 	if (rv != FR_OK) {
-		printf_P(PSTR("Can't seek to %lu: %u\n"), start, rv);
+		outf("Can't seek to %lu: %u\r\n", start, rv);
 		goto out;
 	}
 
-	printf_P(PSTR("Dump from %lu to %lu...\n\n"), start, start + span);
+#define BUF_SZ 128
+	buf = fast_malloc(BUF_SZ);
+	if (buf == NULL) {
+		outf("Can't alloc buf\r\n");
+		goto out;
+	}
+
+	outf("Dump from %lu to %lu...\r\n\r\n", start, start + span);
 	do {
 		unsigned off;
 
-		rd = sizeof(buf);
+		rd = BUF_SZ;
 		if (rd > span)
 			rd = span;
 		if (rd == 0)
 			break;
 		rv = f_read(&f, buf, rd, &len);
 		if (rv != FR_OK) {
-			printf_P(PSTR("Can't read: %u\n"), rv);
+			outf("Can't read: %u\r\n", rv);
 			goto out;
 		}
 		span -= rd;
@@ -354,25 +373,32 @@ cmd_hd(const char **argv, uint8_t argc)
 			phex(buf[off]);
 			putchar(' ');
 			if (!((off+1) % 16))
-				putchar('\n');
+				puts("\r");
 		}
 	} while (len == rd);
-	putchar('\n');
+	puts("\r");
 
 out:
+	if (buf)
+		fast_free(buf);
 	f_close(&f);
+#undef BUF_SZ
 }
-#endif
 
-#if 0
 static void
-cmd_ls(const char **argv, uint8_t argc)
+cmd_ls(const char **argv, int argc)
 {
 	DIR d;
 	FILINFO f;
 	FRESULT rv;
 	char dirc;
 	const char *path = current_path;
+	char *lfnbuf;
+	const char *fn;
+
+	lfnbuf = fast_malloc(_MAX_LFN + 1);
+	f.lfname = lfnbuf;
+	f.lfsize = _MAX_LFN + 1;
 
 	if (argc >= 2) {
 		rv = f_opendir(&d, argv[1]);
@@ -381,48 +407,51 @@ cmd_ls(const char **argv, uint8_t argc)
 		rv = f_opendir(&d, ".");
 
 	if (rv != FR_OK) {
-		printf_P(PSTR("Can't open dir: %u\n"), rv);
-		return;
+		outf("Can't open dir: %u\r\n", rv);
+		goto out;
 	}
 
-	printf_P(PSTR("Contents of %s...\n"), path);
+	outf("Contents of %s...\r\n", path);
 	while (1) {
 		rv = f_readdir(&d, &f);
 		if (rv != FR_OK || !f.fname[0])
 			break;
+		fn = f.fname;
+		if (*f.lfname)
+			fn = f.lfname;
 		dirc = ' ';
 		if (f.fattrib & AM_DIR)
 			dirc = '/';
-		printf_P(PSTR("% 12s%c %7lu Bytes\n"), f.fname, dirc, f.fsize);
+		outf("%12s%c %7lu Bytes\r\n", fn, dirc, f.fsize);
 	}
 
 	if (rv != FR_OK) {
-		printf_P(PSTR("failed dir list: %u\n"), rv);
-		return;
+		outf("failed dir list: %u\r\n", rv);
+		goto out;
 	}
-}
-#endif
 
-#if 0
+out:
+	fast_free(lfnbuf);
+}
+
 static void
-cmd_rm(const char **argv, uint8_t argc)
+cmd_rm(const char **argv, int argc)
 {
 	FRESULT rv;
 	uint8_t i;
 
 	if (argc < 2) {
-		logf((_P("ARGS: rm file ...\n")));
+		outf("ARGS: rm file ...\r\n");
 		return;
 	} 
 
 	for (i = 1; i < argc; ++i) {
 		rv = f_unlink(argv[i]);
 		if (rv != FR_OK) {
-			logf((_P("can't rm '%s': %u\n"), argv[i], rv));
+			outf("can't rm '%s': %u\r\n", argv[i], rv);
 		}
 	}
 }
-#endif
 
 static void
 cmd_free(const char **argv, int argc)
@@ -440,24 +469,26 @@ cmd_free(const char **argv, int argc)
 	outf("fast heap free total: %u bytes\r\n", size);
 }
 
-#if 0
 static void
 cmd_pool(const char **argv, int argc)
 {
+	(void)argv;
+	(void)argc;
 	test_pool_run_all();
 	//v_assert(0 == 0);
 }
-#endif
 
-#if 0
 static void
 cmd_vfatfs(const char **argv, int argc)
 {
 	struct pool *p;
 
+	(void)argv;
+	(void)argc;
+
 	p = pool_init(5);
 	if (!p) {
-		logf(_P("can't alloc pool\n"));
+		outf("can't alloc pool\r\n");
 		return;
 	}
 	cmd_free(NULL, 0);
@@ -466,17 +497,16 @@ cmd_vfatfs(const char **argv, int argc)
 
 	pool_free(p);
 }
-#endif
 
-#if 0
 static void
 cmd_accdb(const char **argv, int argc)
 {
 	struct pool *p;
 
-	p = pool_init(8);
+	(void)argv;
+	p = pool_init(10);
 	if (!p) {
-		logf(_P("can't alloc pool\n"));
+		outf("can't alloc pool\r\n");
 		return;
 	}
 	cmd_free(NULL, 0);
@@ -487,24 +517,24 @@ cmd_accdb(const char **argv, int argc)
 
 	pool_free(p);
 }
-#endif
 
-#if 0
 static void
 cmd_crypto(const char **argv, int argc)
 {
 	struct pool *p;
 
+	(void)argv;
+	(void)argc;
+
 	p = pool_init(6);
 	if (!p) {
-		logf(_P("can't alloc pool\n"));
+		outf("can't alloc pool\r\n");
 		return;
 	}
 	test_vfs_crypt_run_all(&fatfs_vfs, p);
 
 	pool_free(p);
 }
-#endif
 
 static void map_command(const char **argv, int argc);
 
@@ -514,7 +544,7 @@ cmd_loop(const char **argv, int argc)
 	unsigned long cnt;
 
 	if (argc < 3) {
-		outf("ARGS: loop <count> <prog> <arg1> <argn>\r\n");
+		outf("ARGS: loop <count> <prog> [<arg1> <argn>]\r\n");
 		return;
 	}
 	
@@ -525,6 +555,28 @@ cmd_loop(const char **argv, int argc)
 		map_command(argv + 2, argc - 2);
 		cnt--;
 	}
+}
+
+static void
+cmd_time(const char **argv, int argc)
+{
+	struct TimeMeasurement tm;
+
+	if (argc < 2) {
+		outf("ARGS: time <prog> [<arg1> <argn>]\r\n");
+		return;
+	}
+
+	tmObjectInit(&tm);
+	tmStartMeasurement(&tm);
+	map_command(argv + 1, argc - 1);
+	tmStopMeasurement(&tm);
+
+	outf("\r\n\r\nElapsed: %us %ums %uus (%u ticks)\r\n",
+	     (unsigned)RTT2S(tm.last),
+	     (unsigned)RTT2MS(tm.last) % 1000,
+	     (unsigned)RTT2US(tm.last) % 1000,
+	     (unsigned)tm.last);
 }
 
 #if 0
@@ -699,17 +751,44 @@ cmd_lcd(const char **argv, int argc)
 }
 #endif
 
-static const struct console_cmd {
-	void (*cb)(const char **, int);
-	const char *name;
-} command_list[] = {
-	{cmd_free, "free"},
-	{cmd_loop, "loop"},
-	{cmd_rand, "rand"},
-	{cmd_pbkdf2, "pbkdf2"},
-	{cmd_aes, "aes"},
+static void cmd_help(const char **argv, int argc);
+
+static const struct console_cmd command_list[] = {
+	{cmd_help, "help", "command help"},
+	{cmd_free, "free", "display free ram"},
+	{cmd_loop, "loop", "repeat command"},
+	{cmd_time, "time", "get elapsed time for cmd"},
+	{cmd_ls, "ls", "list files"},
+	{cmd_ls, "dir", "list files"},
+	{cmd_cd, "cd", "change directory"},
+	{cmd_rm, "rm", "remove file"},
+	{cmd_rm, "del", "remove file"},
+	{cmd_cat, "cat", "view contents of file"},
+	{cmd_cat, "type", "view contents of file"},
+	{cmd_hd, "hd", "hex dump of file"},
+	{cmd_rand, "rand", "test RNG"},
+	{cmd_pbkdf2, "pbkdf2", "test pbkdf2_sha1"},
+	{cmd_aes, "aes", "test aes-256-cbc"},
+	{cmd_crypto, "crypto", "test crypto subsystem"},
+	{cmd_accdb, "accdb", "test accdb subsystem"},
+	{cmd_pool, "pool", "test pool subsystem"},
+	{cmd_vfatfs, "vfatfs", "test vfatfs subsystem"},
 	{NULL}
 };
+
+static void
+cmd_help(const char **argv, int argc)
+{
+	const struct console_cmd *list;
+
+	(void)argv;
+	(void)argc;
+
+	outf("Commands:\r\n\r\n");
+	for (list = command_list; list->cb; ++list) {
+		outf("%12s : %s\r\n", list->name, list->help);
+	}
+}
 
 static void
 map_command(const char **argv, int argc)
@@ -725,67 +804,32 @@ map_command(const char **argv, int argc)
 	}
 
 	outf("Unknown command, '%s'\r\n", cmd);
-	outf("Known commands:\r\n");
+	outf("Try one of these:\r\n");
 	for (list = command_list; list->cb; ++list) {
 		outf("%s ", list->name);
 	}
 	puts("\r");
-
-#if 0
-	if (strcmp_P(cmd, _P("ls")) == 0)
-		cmd_ls(argv, argc);
-	else if (strcmp_P(cmd, _P("rm")) == 0)
-		cmd_rm(argv, argc);
-	else if (strcmp_P(cmd, _P("cd")) == 0)
-		cmd_cd(argv, argc);
-	else if (strcmp_P(cmd, _P("cat")) == 0)
-		cmd_cat(argv, argc);
-	else if (strcmp_P(cmd, _P("sha1")) == 0)
-		cmd_sha1(argv, argc);
-	else if (strcmp_P(cmd, _P("rand")) == 0)
-		cmd_rand(argv, argc);
-	else if (strcmp_P(cmd, _P("pbkdf2")) == 0)
-		cmd_pbkdf2(argv, argc);
-	else if (strcmp_P(cmd, _P("aes")) == 0)
-		cmd_aes(argv, argc);
-	else if (strcmp_P(cmd, _P("hd")) == 0)
-		cmd_hd(argv, argc);
-	else if (strcmp_P(cmd, _P("pool")) == 0)
-		cmd_pool(argv, argc);
-	else if (strcmp_P(cmd, _P("vfatfs")) == 0)
-		cmd_vfatfs(argv, argc);
-	else if (strcmp_P(cmd, _P("accdb")) == 0)
-		cmd_accdb(argv, argc);
-	else if (strcmp_P(cmd, _P("crypto")) == 0)
-		cmd_crypto(argv, argc);
-	else if (strcmp_P(cmd, _P("free")) == 0)
-		cmd_free(argv, argc);
-	else if (strcmp_P(cmd, _P("loop")) == 0)
-		cmd_loop(argv, argc);
-	else if (strcmp_P(cmd, _P("sha204")) == 0)
-		cmd_sha204(argv, argc);
-	else if (strcmp_P(cmd, _P("lcd")) == 0)
-		cmd_lcd(argv, argc);
-	else
-		printf_P(PSTR("Unknown command '%s'\n"), cmd);
-#endif
 }
 
 void
 console_cmd_loop(void)
 {
-	char ln[64];
-#define ARGV_MAX 8
+	char *ln;
+#define ARGV_MAX 32
 	const char *argv[ARGV_MAX];
 	int argc;
 	char *p;
 
+#define LINE_MAX 128
+	ln = fast_mallocz(LINE_MAX);
+	f_getcwd(current_path, sizeof(current_path));
+
 	while (1) {
 		char *lnp;
 
-		//outf("%s $ ", current_path);
-		outf(" $ ");
-		if (!getline(ln, sizeof(ln), 1))
+		outf("%s $ ", current_path);
+		//outf(" $ ");
+		if (!getline(ln, LINE_MAX, 1))
 			continue;
 		argc = 0;
 		lnp = ln;
@@ -796,5 +840,7 @@ console_cmd_loop(void)
 		if (argc >= 1 && *argv[0])
 			map_command(argv, argc);
 	}
+
+	fast_free(ln);
 }
 

@@ -1,7 +1,5 @@
 #include <string.h>
-#include "vfs.h"
-#include "test.h"
-#include "pool.h"
+#include "keeper.h"
 
 int8_t
 vfs_open(const struct vfs *methods, struct file *fp,
@@ -89,9 +87,9 @@ test_vfs(const struct vfs *meth, struct pool *p)
 void
 test_vfs_run_all(const struct vfs *meth, struct pool *p)
 {
-	logf((_P("VFS:\n")));
+	outf("VFS:\r\n");
 	test_vfs(meth, p);
-	logf((_P("OK\n")));
+	outf("OK\r\n");
 }
 
 #if 0

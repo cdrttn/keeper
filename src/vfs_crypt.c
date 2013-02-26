@@ -1,14 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
-#include "intop.h"
-#include "vfs.h"
-#include "vfs_crypt.h"
-#include "crypto.h"
-#include "pool.h"
-#include "test.h"
-#include "print.h"
+#include "keeper.h"
 
 #define SECT_SIZE VFS_SECT_SIZE
 struct crypt_file {
@@ -407,12 +400,10 @@ static void
 vfs_crypt_close(struct file *fp)
 {
 	vfs_close(BASE(fp));
-#ifndef BUILD_AVR
 	crypto_cipher_free(CTX(fp)->cipher);
-#endif
 	pool_deallocate_block(CTX(fp)->pool, CTX(fp)->buf);
 	memset(CTX(fp), 0, sizeof(struct crypt_file));
-	free(CTX(fp));
+	fast_free(CTX(fp));
 }
 
 static int8_t
@@ -436,12 +427,14 @@ vfs_crypt_write_sector(struct file *fp, const void *buf, uint16_t sector)
 static uint16_t
 vfs_crypt_start_sector(struct file *fp)
 {
+	(void)fp;
 	return DATA_SECT_START;
 }
 
 static uint16_t
 vfs_crypt_end_sector(struct file *fp)
 {
+	(void)fp;
 	return 0xffff;
 }
 
@@ -460,11 +453,11 @@ vfs_crypt_init(struct file *base, struct pool *pool)
 {
 	struct crypt_file *crypt;
 
-	crypt = calloc(1, sizeof(struct crypt_file));
+	crypt = fast_mallocz(sizeof(struct crypt_file));
 	if (crypt == NULL)
 		return -1;
 
-#ifndef BUILD_AVR
+#if 0
 	crypt->cipher = crypto_cipher_init();
 	if (crypt->cipher == NULL)
 		goto out;
@@ -484,11 +477,9 @@ vfs_crypt_init(struct file *base, struct pool *pool)
 out:
 	if (crypt->buf)
 		pool_deallocate_block(pool, crypt->buf);
-#ifndef BUILD_AVR
 	if (crypt->cipher)
 		crypto_cipher_free(crypt->cipher);
-#endif
-	free(crypt);
+	fast_free(crypt);
 
 	return -1;
 }
@@ -613,21 +604,21 @@ test_vfs_crypt_header(struct pool *pool)
 void
 test_vfs_crypt_run_all(const struct vfs *meth, struct pool *p)
 {
-	logf((_P("Header:\n")));
+	outf("Header:\r\n");
 	test_vfs_crypt_header(p);
-	logf((_P("OK\n")));
+	outf("OK\r\n");
 
-	logf((_P("Format:\n")));
+	outf("Format:\r\n");
 	test_vfs_crypt_format(meth, p);
-	logf((_P("OK\n")));
+	outf("OK\r\n");
 
-	logf((_P("Unlock:\n")));
+	outf("Unlock:\r\n");
 	test_vfs_crypt_unlock(meth, p);
-	logf((_P("OK\n")));
+	outf("OK\r\n");
 
-	logf((_P("Chpass:\n")));
+	outf("Chpass:\r\n");
 	test_vfs_crypt_chpass(meth, p);
-	logf((_P("OK\n")));
+	outf("OK\r\n");
 }
 
 #if 0

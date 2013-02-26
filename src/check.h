@@ -1,10 +1,8 @@
 #ifndef _TEST_H_
 #define _TEST_H_
 
-#include <assert.h>
 #include <stdlib.h>
-#include "logging.h"
-#include "memdebug.h"
+#include "ch.h"
 
 /* Dead simple test framework. Pass the test or die!
    The state of an MCU might be ruined by a bad test,
@@ -13,16 +11,8 @@
    recover.
 */
 
-#ifdef BUILD_AVR
-#define TEST_FLUSH() usb_serial_flush_output()
-#else
-#define TEST_FLUSH()
-#endif
-
 #define TEST_ABORT() do { \
-	TEST_FLUSH(); 	\
-	abort(); 	\
-} while(0)
+} while(1)
 
 //#ifdef BUILD_AVR
 //#define AFMT "'%S' MEM %u LINE %u: "
@@ -31,18 +21,18 @@
 //#endif
 
 #ifdef TEST_ASSERT
-#define v_assert(a) assert(a)
+//#define v_assert(a) assert(a)
 #else
 
 #ifndef TEST_QUIET
 
 #define v_assert(a) \
 do {							\
-	logf((_P("ASSERT "AFMT), _P(#a), __LINE__));	\
+	outf("ASSERT "AFMT, #a, __LINE__);		\
 	if ((a)) {					\
-		logf((_P("OK\n")));			\
+		outf("OK\r\n");				\
 	} else {					\
-		logf((_P("FAIL\n")));			\
+		outf("FAIL\r\n");			\
 		TEST_ABORT();				\
 	}						\
 } while (0)
@@ -52,8 +42,8 @@ do {							\
 #define v_assert(a) \
 do {							\
 	if (!(a)) {					\
-		logf((_P("ASSERT FAIL "AFMT), _P(#a), __LINE__));	\
-		logf((_P("FAIL\n")));			\
+		outf("ASSERT FAIL "AFMT, #a, __LINE__);	\
+		outf("FAIL\r\n");			\
 		TEST_ABORT();				\
 	}						\
 } while (0)

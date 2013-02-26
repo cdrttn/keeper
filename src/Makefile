@@ -64,7 +64,12 @@ PROJECT = keeper
 KEEPERSRC = \
 	main.c \
 	console.c \
-	crypto_stm32.c
+	crypto_stm32.c \
+	pool.c \
+	accdb.c \
+	vfs.c \
+	vfs_fatfs.c \
+	vfs_crypt.c
 
 # Imported source files and paths
 CHIBIOS = /home/chrisd/proj/ChibiOS
@@ -77,7 +82,7 @@ include $(CHIBIOS)/test/test.mk
 include $(CHIBIOS)/os/various/fatfs_bindings/fatfs.mk
 
 # Define linker script file here
-LDSCRIPT= $(PORTLD)/STM32F407xG.ld
+LDSCRIPT= STM32F407xG.ld
 #LDSCRIPT= $(PORTLD)/STM32F407xG_CCM.ld
 
 # C sources that can be compiled in ARM or THUMB mode depending on the global
@@ -172,7 +177,7 @@ CPPWARN = -Wall -Wextra
 #
 
 # List all default C defines here, like -D_DEBUG=1
-DDEFS = -DMMC_SECTOR_SIZE=512 -DSTDOUT_SD=SD2 -DSTDIN_SD=SD2
+DDEFS = -DMMC_SECTOR_SIZE=512 -DSTDOUT_SD=SD2 -DSTDIN_SD=SD2 -DTEST_QUIET
 
 # List all default ASM defines here, like -D_DEBUG=1
 DADEFS =

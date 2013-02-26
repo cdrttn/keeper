@@ -1,9 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
-#include "pool.h"
-#include "test.h"
+#include "keeper.h"
 
 struct pool *
 pool_init(uint16_t amt)
@@ -11,9 +9,13 @@ pool_init(uint16_t amt)
 	struct pool *pool;
 	size_t tot = sizeof(struct pool) + sizeof(struct block) * amt;
 
-	pool = calloc(1, tot);
+#if 0
+	pool = fast_mallocz(tot);
+#endif
+	pool = chHeapAlloc(NULL, tot);
 	if (pool == NULL)
 		return NULL;
+	memset(pool, 0, tot);
 	pool->total = amt;
 
 	return pool;
@@ -24,14 +26,16 @@ pool_free(struct pool *pool)
 {
 	size_t tot = sizeof(struct pool) + sizeof(struct block) * pool->total;
 	memset(pool, 0, tot);
-	free(pool);
+	fast_free(pool);
 }
 
 void
 pool_deallocate_block(struct pool *pool, uint8_t *block)
 {
-	assert(BLOCK(block)->allocated == 1);
-	assert(pool->nallocated > 0);
+	chDbgAssert(BLOCK(block)->allocated == 1, "pool_deallocate_block #1",
+		    "block not allocated");
+	chDbgAssert(pool->nallocated > 0, "pool_deallocate_block #2",
+		    "pool has no blocks?");
 	memset(BLOCK(block), 0, sizeof(struct block));
 	pool->nallocated--;
 }
@@ -56,7 +60,9 @@ pool_allocate_block(struct pool *pool, void *p)
 			b->allocated = 1;
 			b->user_ptr = p;
 			pool->nallocated++;
-			assert(pool->nallocated <= pool->total);
+			chDbgAssert(pool->nallocated <= pool->total,
+				    "pool_allocate_block #1",
+				    "allocate more than avail?");
 			return b->block;
 		}
 	}
@@ -101,13 +107,13 @@ pool_print(struct pool *p)
 {
 	unsigned i;
 	
-	logf((_P("total = %u\n"), p->total));
-	logf((_P("nalloc = %u\n\n"), p->nallocated));
+	outf("total = %u\r\n", p->total);
+	outf("nalloc = %u\r\n\r\n", p->nallocated);
 
 	for (i = 0; i < p->total; ++i) {
 		struct block *b = &p->data[i];
-		logf((_P("block %p: user_ptr %p, alloc %d\n"),
-		     b->block, b->user_ptr, b->allocated));
+		outf("block %p: user_ptr %p, alloc %d\r\n",
+		     b->block, b->user_ptr, b->allocated);
 	}
 }
 
@@ -216,7 +222,7 @@ test_pool(void)
 void
 test_pool_run_all(void)
 {
-	logf((_P("Pool:\n")));
+	outf("Pool:\r\n");
 	test_pool();
-	logf((_P("OK\n")));
+	outf("OK\r\n");
 }

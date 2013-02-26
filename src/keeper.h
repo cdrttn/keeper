@@ -3,8 +3,10 @@
 
 #include <string.h>
 #include "ch.h"
+#include "check.h"
 #include "console.h"
 #include "hal.h"
+#include "intop.h"
 #include "ff.h"
 #include "diskio.h"
 #include "pool.h"

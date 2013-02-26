@@ -1,8 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "vfs_fatfs.h"
-#include "ff.h"
+#include "keeper.h"
 
 #define FP(fp) ((FIL *)((fp)->ctx))
 
@@ -17,13 +16,13 @@ fatfs_open(struct file *fp, const char *path, uint8_t access)
 		acc = FA_READ | FA_WRITE | FA_OPEN_ALWAYS;
 	}
 
-	f = calloc(1, sizeof(*f));
+	f = fast_mallocz(sizeof(*f));
 	if (f == NULL)
 		return -1;
 	
 	rv = f_open(f, path, acc);
 	if (rv != FR_OK) {
-		free(f);
+		fast_free(f);
 		return -1;
 	}
 
@@ -36,7 +35,7 @@ static void
 fatfs_close(struct file *fp)
 {
 	f_close(FP(fp));
-	free(FP(fp));
+	fast_free(FP(fp));
 	fp->ctx = NULL;
 }
 
