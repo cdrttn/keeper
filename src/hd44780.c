@@ -1,78 +1,61 @@
-#include <avr/io.h>
-#include <avr/interrupt.h>
 #include <string.h>
+#define _GNU_SOURCE
 #include <stdio.h>
-#include <assert.h>
-#include "test.h"
-#include "hd44780.h"
-//borrow this from the sha204 lib
-#include "delay_x.h"
+#include "keeper.h"
 
-// lcd control lines. RW is tied low and ignored.
-#define LCD_CTRL PORTF
-#define LCD_CTRL_DDR DDRF
-#define LCD_RS _BV(3)
-#define LCD_E _BV(2)
+// lcd lines. RW is tied low and ignored.
 
-// shift register lines
-#define LCD_DATA PORTC
-#define LCD_DATA_DDR DDRC
-#define LCD_DATA_SERIAL _BV(5)
-#define LCD_DATA_LATCH _BV(6)
-#define LCD_DATA_CLOCK _BV(7)
+#define LCD_CS_HIGH() palWritePad(GPIOB, GPIOB_LCD_CS, 1)
+#define LCD_CS_LOW() palWritePad(GPIOB, GPIOB_LCD_CS, 0)
+#define LCD_RS_HIGH() palWritePad(GPIOB, GPIOB_LCD_RS, 1)
+#define LCD_RS_LOW() palWritePad(GPIOB, GPIOB_LCD_RS, 0)
+#define LCD_CLK_HIGH() palWritePad(GPIOB, GPIOB_LCD_CLK, 1)
+#define LCD_CLK_LOW() palWritePad(GPIOB, GPIOB_LCD_CLK, 0)
+#define LCD_SI_HIGH() palWritePad(GPIOB, GPIOB_LCD_SI, 1)
+#define LCD_SI_LOW() palWritePad(GPIOB, GPIOB_LCD_SI, 0)
 
 // start with backlight control OFF
 static uint8_t backlight = 0;
+FILE *lcd_stdout = NULL;
 
 static inline void
 shift_out(uint8_t c)
 {
 	uint8_t bit;
 
-	LCD_DATA &= ~LCD_DATA_LATCH;
+	LCD_CLK_HIGH();
+	LCD_CS_LOW();
+	_delay_us(1);
 	for (bit = 0; bit < 8; ++bit) {
-		//if (c & _BV(bit))
 		if ((c << bit) & 0x80)
-			LCD_DATA |= LCD_DATA_SERIAL;
+			LCD_SI_HIGH();
 		else
-			LCD_DATA &= ~LCD_DATA_SERIAL;
-		LCD_DATA |= LCD_DATA_CLOCK;
+			LCD_SI_LOW();
+		LCD_CLK_LOW();
 		_delay_us(1);
-		LCD_DATA &= ~LCD_DATA_CLOCK;
+		LCD_CLK_HIGH();
+		_delay_us(1);
 	}
-	LCD_DATA |= LCD_DATA_LATCH;
+	LCD_CS_HIGH();
 }
 
 void
 lcd_command(uint8_t c)
 {
-	shift_out(c);
-	LCD_CTRL &= ~LCD_RS;
-	LCD_CTRL |= LCD_E;
+	LCD_RS_LOW();
 	_delay_us(1);
-	LCD_CTRL &= ~LCD_E;
+	shift_out(c);
 	_delay_ms(5);
-}
-
-static int
-_lcd_stdio_putc(char c, FILE *fp)
-{
-	shift_out(c);
-	LCD_CTRL |= LCD_E | LCD_RS;
-	_delay_us(1);
-	LCD_CTRL &= ~LCD_E;
-	_delay_us(200);
-
-	return 0;
 }
 
 void
 lcd_putc(uint8_t c)
 {
-	_lcd_stdio_putc(c, NULL);
+	LCD_RS_HIGH();
+	_delay_us(1);
+	shift_out(c);
+	_delay_us(200);
 }
-
-FILE lcd_stdout = FDEV_SETUP_STREAM(_lcd_stdio_putc, NULL, _FDEV_SETUP_WRITE);
 
 void
 lcd_set_cursor(uint8_t x, uint8_t y)
@@ -87,17 +70,44 @@ lcd_set_cursor(uint8_t x, uint8_t y)
 	case 2:
 		lcd_command(LCD_LINE_2 + x);
 		break;
+#ifdef LCD_LINE_3
 	case 3:
 		lcd_command(LCD_LINE_3 + x);
 		break;
+#endif
 	}
+}
+
+static ssize_t
+_lcd_write(void *c, const char *buf, size_t s)
+{
+	size_t i;
+
+	(void)c;
+	for (i = 0; i < s; ++i)
+		lcd_putc(buf[i]);
+
+	return s;
 }
 
 void
 lcd_init(void)
 {
-	LCD_CTRL_DDR |= LCD_RS | LCD_E;
-	LCD_DATA_DDR |= LCD_DATA_SERIAL | LCD_DATA_CLOCK | LCD_DATA_LATCH;
+	cookie_io_functions_t lcdio = {
+		.read = NULL,
+		.write = _lcd_write,
+		.seek = NULL,
+		.close = NULL
+	};
+	lcd_stdout = fopencookie(NULL, "w", lcdio);
+	chDbgAssert(lcd_stdout != NULL, "lcd_init #1", "low on memory");
+
+	setvbuf(lcd_stdout, NULL, _IONBF, 0);
+
+	LCD_SI_HIGH();
+	LCD_CLK_HIGH();
+
+#if 0
 	_delay_ms(100);
 	lcd_command(LCD_FUNC_8BIT_1LN);
 	_delay_ms(30);
@@ -105,51 +115,80 @@ lcd_init(void)
 	_delay_ms(10);
 	lcd_command(LCD_FUNC_8BIT_1LN);
 	_delay_ms(10);
+#endif
 
+	// initialization for DOGM 3-line display, 3.3v
+	_delay_ms(200);
+#if 0
+	lcd_command(LCD_FUNC_8BIT_2LN_IS(1));
+	lcd_command(LCD_IS1_BIAS_15B_3LN);
+	lcd_command(LCD_IS1_PWR_BOOST(0b01));
+	lcd_command(LCD_IS1_FOLLOWER_ON(0b110));
+	_delay_ms(200);
+	lcd_command(LCD_IS1_SET_CONTRAST(0b0010));
+
+	// back to standard hitachi interface
 	lcd_command(LCD_FUNC_8BIT_2LN);
-	//lcd_command(LCD_ENABLE);
 	lcd_command(LCD_CLEAR);
 	lcd_command(LCD_ENTRY_CURSOR_LEFT);
 	lcd_command(LCD_ON);
+#endif
+
+#if 0
+Function Set     0 0 0 0 1 1 1 0 0 1 $39 8 bit data length, 2 lines, instruction table 1
+Bias Set         0 0 0 0 0 1 1 1 0 1 $1D BS: 1/4, 3 line LCD
+Power Control    0 0 0 1 0 1 0 0 0 0 $50 booster off, contrast C5, set C4
+Follower Control 0 0 0 1 1 0 1 1 0 0 $6C set voltage follower and gain
+Contrast Set     0 0 0 1 1 1 1 1 0 0 $7C set contrast C3, C2, C1
+Function Set     0 0 0 0 1 1 1 0 0 0 $38 switch back to instruction table 0
+Display ON/OFF   0 0 0 0 0 0 1 1 1 1 $0F display on, cursor on, cursor blink
+Clear Display    0 0 0 0 0 0 0 0 0 1 $01 delete display, cursor at home
+                                                                                         Initialisation for 5V
+Entry Mode Set   0 0 0 0 0 0 0 1 1 0 $06 cursor auto-increment
+#endif
+	lcd_command(0x39);
+	lcd_command(0x1D);
+	lcd_command(0x50);
+	lcd_command(0x6c);
+	_delay_ms(200);
+	lcd_command(0x7c);
+	_delay_ms(200);
+	lcd_command(0x38);
+	lcd_command(0x0f);
+	lcd_command(0x01);
 }
 
-// backlight control, 8-bit pwm on PORTB.7
+// backlight control
 void
 lcd_backlight_on(void)
 {
 	if (backlight)
 		return;
-
-	DDRB |= _BV(7);
-	PORTB &= ~_BV(7);
-	OCR0A = 0xF;
-	TCCR0A |= _BV(COM0A1) | _BV(WGM00);
-	TCCR0B |= _BV(CS00);
-
-	backlight = 1;
+	backlight = 100;
+	pwmEnableChannel(&PWMD1, 0, backlight);
 }
 
 void
 lcd_backlight_off(void)
 {
+	if (!backlight)
+		return;
+
 	backlight = 0;
-	OCR0A = 0x0;
-	TCCR0A &= ~(_BV(COM0A1) | _BV(WGM00));
-	TCCR0B &= ~_BV(CS00);
-	DDRB &= ~_BV(7);
-	PORTB &= ~_BV(7);
+	pwmDisableChannel(&PWMD1, 0);
 }
 
 void
 lcd_backlight_level_set(uint8_t lvl)
 {
-	OCR0A = lvl;
+	backlight = lvl;
+	pwmEnableChannel(&PWMD1, 0, backlight);
 }
 
 uint8_t
 lcd_backlight_level_get(void)
 {
-	return OCR0A;
+	return backlight;
 }
 
 void
@@ -175,12 +214,12 @@ lcd_entry_render(const struct entry *ent)
 	     i < ent->size_current && col < ent->width;
 	     ++i, ++col) {
 		if (ent->passwd)
-			fputc('*', &lcd_stdout);
+			fputc('*', lcd_stdout);
 		else
-			fputc(ent->buf[i], &lcd_stdout);
+			fputc(ent->buf[i], lcd_stdout);
 	}
 	for (; col < ent->width; ++col) {
-		fputc(' ', &lcd_stdout);
+		fputc(' ', lcd_stdout);
 	}
 
 	lcd_set_cursor(ent->x + ent->pos_cursor, ent->y);
@@ -300,12 +339,11 @@ menu_load_array(struct menu *menu)
 static const char *
 menu_get_text(struct menu *menu, void *p)
 {
-	static char tmp[28];
 	struct menu_item *item = p;
 
+	(void)menu;
 	if (item && item->text) {
-		strcpy_P(tmp, item->text);
-		return tmp;
+		return item->text;
 	}
 
 	return NULL;
@@ -365,18 +403,20 @@ lcd_menu_render(struct menu *menu)
 	for (r = 0; r < menu->height; ++r) {
 		lcd_set_cursor(menu->x, menu->y + r);
 		if (r == menu->row_cursor) {
-			fputc('>', &lcd_stdout);
+			fputc('>', lcd_stdout);
 		} else {
-			fputc(' ', &lcd_stdout);
+			fputc(' ', lcd_stdout);
 		}
 		if (menu->dirty) {
-			assert(menu->get_item_text != NULL);
+			chDbgAssert(menu->get_item_text != NULL,
+				    "lcd_menu_render #1",
+				    "no cb to get text");
 			label = menu->get_item_text(menu, menu->items[r]);
 			for (w = 1; label && *label && w < menu->width; ++w) {
-				fputc(*label++, &lcd_stdout);
+				fputc(*label++, lcd_stdout);
 			}
 			for (; w < menu->width; ++w) {
-				fputc(' ', &lcd_stdout);
+				fputc(' ', lcd_stdout);
 			}
 		}
 	}
@@ -395,7 +435,8 @@ lcd_menu_clear(struct menu *menu)
 void
 lcd_menu_add_item(struct menu *menu, void *item)
 {
-	assert(menu->max_items < menu->height);
+	chDbgAssert(menu->max_items < menu->height, "lcd_menu_add_item #1",
+		    "too many items");
 	menu->items[menu->max_items++] = item;
 }
 

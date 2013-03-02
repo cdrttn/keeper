@@ -579,32 +579,19 @@ cmd_time(const char **argv, int argc)
 	     (unsigned)tm.last);
 }
 
-#if 0
-static const char line_1[] PROGMEM = "This line 1";
-static const char line_2[] PROGMEM = "This line 2";
-static const char line_3[] PROGMEM = "This line 3";
-static const char line_4[] PROGMEM = "This line 4";
-static const char line_5[] PROGMEM = "This line 5";
-static const char line_6[] PROGMEM = "This line 6";
-static const char line_7[] PROGMEM = "This line 7";
-static const char line_8[] PROGMEM = "This line 8";
-static const char line_9[] PROGMEM = "This line 9";
-static const char line_10[] PROGMEM = "This line 10";
-static const char line_11[] PROGMEM = "This line 11";
-
 static const struct menu_item test_items[] = {
 	{NULL, 0},
-	{line_1, 0},
-	{line_2, 1},
-	{line_3, 2},
-	{line_4, 3},
-	{line_5, 4},
-	{line_6, 5},
-	{line_7, 6},
-	{line_8, 7},
-	{line_9, 8},
-	{line_10, 9},
-	{line_11, 10},
+	{"Line 1", 0},
+	{"Line 2", 1},
+	{"Line 3", 2},
+	{"Line 4", 3},
+	{"Line 5", 4},
+	{"Line 6", 5},
+	{"Line 7", 6},
+	{"Line 8", 7},
+	{"Line 9", 8},
+	{"Line 10", 9},
+	{"Line 11", 10},
 	{NULL, 0}
 };
 
@@ -615,14 +602,14 @@ cmd_lcd(const char **argv, int argc)
 	int c;
 
 	if (argc < 2) {
-		puts_P(_P("ARGS: lcd <backlight|clear|puts>"));
+		puts("ARGS: lcd <backlight|clear|puts>\r");
 		return;
 	}
 
 
-	if (!strcmp_P(argv[1], _P("backlight"))) {
+	if (!strcmp(argv[1], "backlight")) {
 		if (argc < 3 || (b = atoi(argv[2])) > 0xff) {
-			puts_P(_P("ARGS: lcd backlight 0-255"));
+			puts("ARGS: lcd backlight 0-255\r");
 			return;
 		}
 		if (b == 0) {
@@ -631,39 +618,39 @@ cmd_lcd(const char **argv, int argc)
 			lcd_backlight_on();
 			lcd_backlight_level_set(b);
 		}
-	} else if (!strcmp_P(argv[1], _P("clear"))) {
+	} else if (!strcmp(argv[1], "clear")) {
 		lcd_command(LCD_CLEAR);
-	} else if (!strcmp_P(argv[1], _P("puts"))) {
+	} else if (!strcmp(argv[1], "puts")) {
 		uint8_t x, y;
 		if (argc < 5) {
-			puts_P(_P("ARGS: lcd puts x y str"));
+			puts("ARGS: lcd puts x y str\r");
 			return;
 		}
 		x = atoi(argv[2]);
 		y = atoi(argv[3]);
 		lcd_set_cursor(x, y);
-		fputs(argv[4], &lcd_stdout);
-	} else if (!strcmp_P(argv[1], _P("mode"))) {
+		fputs(argv[4], lcd_stdout);
+	} else if (!strcmp(argv[1], "mode")) {
 		if (argc < 3) {
-			puts_P(_P("ARGS: lcd mode <rcurs|lcurs|rshift|lshift>"));
+			puts("ARGS: lcd mode <rcurs|lcurs|rshift|lshift>\r");
 			return;
 		}
-		if (!strcmp_P(argv[2], _P("rcurs"))) {
+		if (!strcmp(argv[2], "rcurs")) {
 			lcd_command(LCD_ENTRY_CURSOR_RIGHT);
-		} else if (!strcmp_P(argv[2], _P("lcurs"))) {
+		} else if (!strcmp(argv[2], "lcurs")) {
 			lcd_command(LCD_ENTRY_CURSOR_LEFT);
-		} else if (!strcmp_P(argv[2], _P("rshift"))) {
+		} else if (!strcmp(argv[2], "rshift")) {
 			lcd_command(LCD_ENTRY_SHIFT_RIGHT);
-		} else if (!strcmp_P(argv[2], _P("lshift"))) {
+		} else if (!strcmp(argv[2], "lshift")) {
 			lcd_command(LCD_ENTRY_SHIFT_LEFT);
 		}
-	} else if (!strcmp_P(argv[1], _P("entry"))) {
+	} else if (!strcmp(argv[1], "entry")) {
 		uint8_t width, start;
 		struct entry ent;
 		char *buf;
 
 		if (argc < 6 || (b = atoi(argv[5])) <= 0) {
-			puts_P(_P("ARGS: lcd entry width start buf max [pw]"));
+			puts("ARGS: lcd entry width start buf max [pw]\r");
 			return;
 		}
 		buf = alloca(b);
@@ -672,7 +659,7 @@ cmd_lcd(const char **argv, int argc)
 		width = atoi(argv[2]);
 		start = atoi(argv[3]);
 		lcd_set_cursor(0, 0);
-		fprintf_P(&lcd_stdout, _P("IN: "));
+		fiprintf(lcd_stdout, "IN: ");
 		lcd_entry_init(&ent, buf, b, 4, 0, width);
 		ent.size_current = strlen(argv[4]);
 		ent.pos = start;
@@ -702,12 +689,12 @@ cmd_lcd(const char **argv, int argc)
 				lcd_entry_putc(&ent, c);
 				break;
 			}
+			lcd_set_cursor(0, 1);
+			fiprintf(lcd_stdout,
+				  "sz |szc|ps |psc");
 			lcd_set_cursor(0, 2);
-			fprintf_P(&lcd_stdout,
-				  _P("sz |szc|ps |psc"));
-			lcd_set_cursor(0, 3);
-			fprintf_P(&lcd_stdout,
-				  _P("%03u|%03u|%03u|%03u"),
+			fiprintf(lcd_stdout,
+				  "%03u|%03u|%03u|%03u",
 				  ent.size, ent.size_current,
 				  ent.pos, ent.pos_cursor);
 			lcd_entry_render(&ent);
@@ -715,15 +702,13 @@ cmd_lcd(const char **argv, int argc)
 		putchar('\'');
 		fwrite(buf, ent.size_current, 1, stdout);
 		putchar('\'');
-		putchar('\n');
+		puts("\r");
 		lcd_command(LCD_ON);
-	} else if (!strcmp_P(argv[1], _P("menu"))) {
+	} else if (!strcmp(argv[1], "menu")) {
 		struct menu menu;
 		struct menu_item *item;
 
-		lcd_set_cursor(0, 0);
-		fprintf_P(&lcd_stdout, _P("Menu:"));
-		lcd_menu_init_array(&menu, 0, 1, 20, 3, test_items);
+		lcd_menu_init_array(&menu, 0, 0, 16, 3, test_items);
 		lcd_menu_render(&menu);
 		while ((c = getescape()) != '\r' && c != EOF) {
 			switch (c) {
@@ -743,13 +728,88 @@ cmd_lcd(const char **argv, int argc)
 	
 		item = lcd_menu_get_current_item(&menu);
 		if (item) {
-			printf_P(_P("Item: '%S', '%u'\n"), item->text, item->index);
+			outf("Item: '%s', '%u'\r\n", item->text, item->index);
 		}	
 	}
 
-	putchar('\n');
+	puts("\r");
 }
-#endif
+
+enum {
+	// VI like movement..
+	BTN_LEFT = (1<<0),
+	BTN_DOWN = (1<<1),
+	BTN_UP = (1<<2),
+	BTN_RIGHT = (1<<3),
+	BTN_ENTER = (1<<4)
+};
+
+static uint16_t
+buttons_sample(void)
+{
+	uint16_t rv = 0;
+
+	//palSetPadMode(GPIOB, 6, PAL_MODE_INPUT_PULLUP);
+	//palSetPadMode(GPIOB, 15, PAL_MODE_INPUT_PULLUP);
+	//palSetPadMode(GPIOB, 14, PAL_MODE_INPUT_PULLUP);
+	//palSetPadMode(GPIOC, 10, PAL_MODE_INPUT_PULLUP);
+	//palSetPadMode(GPIOC, 11, PAL_MODE_INPUT_PULLUP);
+
+	rv |= !palReadPad(GPIOB, 6);
+	rv <<= 1;
+	rv |= !palReadPad(GPIOB, 14);
+	rv <<= 1;
+	rv |= !palReadPad(GPIOB, 15);
+	rv <<= 1;
+	rv |= !palReadPad(GPIOC, 10);
+	rv <<= 1;
+	rv |= !palReadPad(GPIOC, 11);
+
+	return rv;
+}
+
+static void
+cmd_buttons(const char **argv, int argc)
+{
+	struct button b;
+	uint8_t x, y;
+
+	(void)argc;
+	(void)argv;
+
+	buttons_start_sampling(buttons_sample);
+	lcd_command(LCD_ON_CURSOR_BLINK);
+
+// XXX move these macros to a central location
+#define LCD_MAX_Y 3
+#define LCD_MAX_X 16
+	x = y = 0;
+	lcd_set_cursor(x, y);
+
+	do {
+		buttons_wait(&b);
+		if (is_button_pressed(&b, BTN_LEFT)) {
+			if (x > 0)
+				x--;
+		}
+		if (is_button_pressed(&b, BTN_RIGHT)) {
+			if (x + 1 < LCD_MAX_X)
+				x++;
+		}
+		if (is_button_pressed(&b, BTN_UP)) {
+			if (y > 0)
+				y--;
+		}
+		if (is_button_pressed(&b, BTN_DOWN)) {
+			if (y + 1 < LCD_MAX_Y)
+				y++;
+		}
+		lcd_set_cursor(x, y);
+	} while (!is_button_pressed(&b, BTN_ENTER));
+
+	buttons_end_sampling();
+	lcd_command(LCD_ON);
+}
 
 static void cmd_help(const char **argv, int argc);
 
@@ -773,6 +833,8 @@ static const struct console_cmd command_list[] = {
 	{cmd_accdb, "accdb", "test accdb subsystem"},
 	{cmd_pool, "pool", "test pool subsystem"},
 	{cmd_vfatfs, "vfatfs", "test vfatfs subsystem"},
+	{cmd_lcd, "lcd", "test lcd"},
+	{cmd_buttons, "buttons", "test buttons"},
 	{NULL}
 };
 

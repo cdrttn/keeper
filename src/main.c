@@ -105,6 +105,20 @@ static SPIConfig ls_spicfg = {NULL, GPIOA, GPIOA_SPI1_SS,
 /* MMC/SD over SPI driver configuration.*/
 static MMCConfig mmccfg = {&SPID1, &ls_spicfg, &hs_spicfg};
 
+/* LCD backlight PWM (test) */
+static PWMConfig lcd_pwmcfg = {
+	1000000,
+	256,
+	NULL,
+	{
+		{PWM_OUTPUT_ACTIVE_HIGH, NULL},
+		{PWM_OUTPUT_DISABLED, NULL},
+		{PWM_OUTPUT_DISABLED, NULL},
+		{PWM_OUTPUT_DISABLED, NULL}
+	},
+	0
+};
+
 /* ccm access */
 static MemoryHeap fast_heap_obj;
 MemoryHeap *fast_heap = &fast_heap_obj;
@@ -182,6 +196,8 @@ int main(void)
 	halInit();
 	chSysInit();
 	crypto_init();
+	lcd_init();
+	buttons_init();
 
 	chHeapInit(fast_heap, FAST_HEAP_ADDR, FAST_HEAP_SIZE);
 
@@ -191,9 +207,21 @@ int main(void)
 
 	setvbuf(stdin, NULL, _IONBF, 0);
 
+	fiprintf(lcd_stdout, "HIHI");
+
 	mmcObjectInit(&MMCD1);
 	mmcStart(&MMCD1, &mmccfg);
 	mount_card();
+
+	pwmStart(&PWMD1, &lcd_pwmcfg);
+	palSetPadMode(GPIOA, 8, PAL_MODE_ALTERNATE(1));
+
+	// XXX moveme
+	palSetPadMode(GPIOB, 6, PAL_MODE_INPUT_PULLUP);
+	palSetPadMode(GPIOB, 15, PAL_MODE_INPUT_PULLUP);
+	palSetPadMode(GPIOB, 14, PAL_MODE_INPUT_PULLUP);
+	palSetPadMode(GPIOC, 10, PAL_MODE_INPUT_PULLUP);
+	palSetPadMode(GPIOC, 11, PAL_MODE_INPUT_PULLUP);
 
 	while (TRUE) {
 		console_cmd_loop();

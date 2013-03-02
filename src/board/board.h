@@ -82,6 +82,11 @@
 #define GPIOA_SWCLK                 14
 #define GPIOA_PIN15                 15
 
+#define GPIOB_LCD_CLK               0
+#define GPIOB_LCD_SI                1
+#define GPIOB_LCD_CS                4
+#define GPIOB_LCD_RS                5
+
 #define GPIOB_PIN0                  0
 #define GPIOB_PIN1                  1
 #define GPIOB_PIN2                  2
@@ -377,12 +382,12 @@
  * PB14 - PIN14                     (input pullup).
  * PB15 - PIN15                     (input pullup).
  */
-#define VAL_GPIOB_MODER             (PIN_MODE_INPUT(GPIOB_PIN0) |           \
-                                     PIN_MODE_INPUT(GPIOB_PIN1) |           \
+#define VAL_GPIOB_MODER             (PIN_MODE_OUTPUT(GPIOB_LCD_SI) |        \
+                                     PIN_MODE_OUTPUT(GPIOB_LCD_CLK) |       \
                                      PIN_MODE_INPUT(GPIOB_PIN2) |           \
                                      PIN_MODE_ALTERNATE(GPIOB_SWO) |        \
-                                     PIN_MODE_INPUT(GPIOB_PIN4) |           \
-                                     PIN_MODE_INPUT(GPIOB_PIN5) |           \
+                                     PIN_MODE_OUTPUT(GPIOB_LCD_CS) |        \
+                                     PIN_MODE_OUTPUT(GPIOB_LCD_RS) |        \
                                      PIN_MODE_ALTERNATE(GPIOB_SCL) |        \
                                      PIN_MODE_INPUT(GPIOB_PIN7) |           \
                                      PIN_MODE_INPUT(GPIOB_PIN8) |           \
@@ -393,12 +398,12 @@
                                      PIN_MODE_INPUT(GPIOB_PIN13) |          \
                                      PIN_MODE_INPUT(GPIOB_PIN14) |          \
                                      PIN_MODE_INPUT(GPIOB_PIN15))
-#define VAL_GPIOB_OTYPER            (PIN_OTYPE_PUSHPULL(GPIOB_PIN0) |       \
-                                     PIN_OTYPE_PUSHPULL(GPIOB_PIN1) |       \
+#define VAL_GPIOB_OTYPER            (PIN_OTYPE_PUSHPULL(GPIOB_LCD_SI) |     \
+                                     PIN_OTYPE_PUSHPULL(GPIOB_LCD_CLK) |    \
                                      PIN_OTYPE_PUSHPULL(GPIOB_PIN2) |       \
                                      PIN_OTYPE_PUSHPULL(GPIOB_SWO) |        \
-                                     PIN_OTYPE_PUSHPULL(GPIOB_PIN4) |       \
-                                     PIN_OTYPE_PUSHPULL(GPIOB_PIN5) |       \
+                                     PIN_OTYPE_PUSHPULL(GPIOB_LCD_CS) |     \
+                                     PIN_OTYPE_PUSHPULL(GPIOB_LCD_RS) |     \
                                      PIN_OTYPE_OPENDRAIN(GPIOB_SCL) |       \
                                      PIN_OTYPE_PUSHPULL(GPIOB_PIN7) |       \
                                      PIN_OTYPE_PUSHPULL(GPIOB_PIN8) |       \
@@ -409,12 +414,12 @@
                                      PIN_OTYPE_PUSHPULL(GPIOB_PIN13) |      \
                                      PIN_OTYPE_PUSHPULL(GPIOB_PIN14) |      \
                                      PIN_OTYPE_PUSHPULL(GPIOB_PIN15))
-#define VAL_GPIOB_OSPEEDR           (PIN_OSPEED_100M(GPIOB_PIN0) |          \
-                                     PIN_OSPEED_100M(GPIOB_PIN1) |          \
+#define VAL_GPIOB_OSPEEDR           (PIN_OSPEED_100M(GPIOB_LCD_SI) |        \
+                                     PIN_OSPEED_100M(GPIOB_LCD_CLK) |       \
                                      PIN_OSPEED_100M(GPIOB_PIN2) |          \
                                      PIN_OSPEED_100M(GPIOB_SWO) |           \
-                                     PIN_OSPEED_100M(GPIOB_PIN4) |          \
-                                     PIN_OSPEED_100M(GPIOB_PIN5) |          \
+                                     PIN_OSPEED_100M(GPIOB_LCD_CS) |        \
+                                     PIN_OSPEED_100M(GPIOB_LCD_RS) |        \
                                      PIN_OSPEED_100M(GPIOB_SCL) |           \
                                      PIN_OSPEED_100M(GPIOB_PIN7) |          \
                                      PIN_OSPEED_100M(GPIOB_PIN8) |          \
@@ -425,12 +430,12 @@
                                      PIN_OSPEED_100M(GPIOB_PIN13) |         \
                                      PIN_OSPEED_100M(GPIOB_PIN14) |         \
                                      PIN_OSPEED_100M(GPIOB_PIN15))
-#define VAL_GPIOB_PUPDR             (PIN_PUPDR_PULLUP(GPIOB_PIN0) |         \
-                                     PIN_PUPDR_PULLUP(GPIOB_PIN1) |         \
+#define VAL_GPIOB_PUPDR             (PIN_PUPDR_PULLUP(GPIOB_LCD_SI) |       \
+                                     PIN_PUPDR_PULLUP(GPIOB_LCD_CLK) |      \
                                      PIN_PUPDR_PULLUP(GPIOB_PIN2) |         \
                                      PIN_PUPDR_FLOATING(GPIOB_SWO) |        \
-                                     PIN_PUPDR_PULLUP(GPIOB_PIN4) |         \
-                                     PIN_PUPDR_PULLUP(GPIOB_PIN5) |         \
+                                     PIN_PUPDR_PULLUP(GPIOB_LCD_CS) |       \
+                                     PIN_PUPDR_PULLUP(GPIOB_LCD_RS) |       \
                                      PIN_PUPDR_FLOATING(GPIOB_SCL) |        \
                                      PIN_PUPDR_PULLUP(GPIOB_PIN7) |         \
                                      PIN_PUPDR_PULLUP(GPIOB_PIN8) |         \
@@ -441,12 +446,12 @@
                                      PIN_PUPDR_PULLUP(GPIOB_PIN13) |        \
                                      PIN_PUPDR_PULLUP(GPIOB_PIN14) |        \
                                      PIN_PUPDR_PULLUP(GPIOB_PIN15))
-#define VAL_GPIOB_ODR               (PIN_ODR_HIGH(GPIOB_PIN0) |             \
-                                     PIN_ODR_HIGH(GPIOB_PIN1) |             \
+#define VAL_GPIOB_ODR               (PIN_ODR_HIGH(GPIOB_LCD_SI) |           \
+                                     PIN_ODR_HIGH(GPIOB_LCD_CLK) |          \
                                      PIN_ODR_HIGH(GPIOB_PIN2) |             \
                                      PIN_ODR_HIGH(GPIOB_SWO) |              \
-                                     PIN_ODR_HIGH(GPIOB_PIN4) |             \
-                                     PIN_ODR_HIGH(GPIOB_PIN5) |             \
+                                     PIN_ODR_HIGH(GPIOB_LCD_CS) |           \
+                                     PIN_ODR_HIGH(GPIOB_LCD_RS) |           \
                                      PIN_ODR_HIGH(GPIOB_SCL) |              \
                                      PIN_ODR_HIGH(GPIOB_PIN7) |             \
                                      PIN_ODR_HIGH(GPIOB_PIN8) |             \
@@ -457,12 +462,12 @@
                                      PIN_ODR_HIGH(GPIOB_PIN13) |            \
                                      PIN_ODR_HIGH(GPIOB_PIN14) |            \
                                      PIN_ODR_HIGH(GPIOB_PIN15))
-#define VAL_GPIOB_AFRL              (PIN_AFIO_AF(GPIOB_PIN0, 0) |           \
-                                     PIN_AFIO_AF(GPIOB_PIN1, 0) |           \
+#define VAL_GPIOB_AFRL              (PIN_AFIO_AF(GPIOB_LCD_SI, 0) |         \
+                                     PIN_AFIO_AF(GPIOB_LCD_CLK, 0) |        \
                                      PIN_AFIO_AF(GPIOB_PIN2, 0) |           \
                                      PIN_AFIO_AF(GPIOB_SWO, 0) |            \
-                                     PIN_AFIO_AF(GPIOB_PIN4, 0) |           \
-                                     PIN_AFIO_AF(GPIOB_PIN5, 0) |           \
+                                     PIN_AFIO_AF(GPIOB_LCD_CS, 0) |         \
+                                     PIN_AFIO_AF(GPIOB_LCD_RS, 0) |         \
                                      PIN_AFIO_AF(GPIOB_SCL, 4) |            \
                                      PIN_AFIO_AF(GPIOB_PIN7, 0))
 #define VAL_GPIOB_AFRH              (PIN_AFIO_AF(GPIOB_PIN8, 0) |           \

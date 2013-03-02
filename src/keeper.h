@@ -16,6 +16,7 @@
 #include "vfs_crypt.h"
 #include "accdb.h"
 #include "hd44780.h"
+#include "buttons.h"
 
 // use the stm32 core coupled memory for a 'fast heap'
 // note that this cannot be used for DMA
@@ -32,5 +33,8 @@ fast_mallocz(size_t size)
 	memset(p, 0, size);
 	return p;
 }
+
+#define _delay_ms(x) chThdSleepMilliseconds(x)
+#define _delay_us(x) halPolledDelay(US2RTT(x))
 
 #endif // _KEEPER_H_

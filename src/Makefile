@@ -67,6 +67,8 @@ KEEPERSRC = \
 	crypto_stm32.c \
 	pool.c \
 	accdb.c \
+	hd44780.c \
+	buttons.c \
 	vfs.c \
 	vfs_fatfs.c \
 	vfs_crypt.c
@@ -94,9 +96,7 @@ CSRC = $(PORTSRC) \
        $(BOARDSRC) \
        $(FATFSSRC) \
        $(TESTSRC) \
-       $(CHIBIOS)/os/various/shell.c \
        $(CHIBIOS)/os/various/syscalls.c \
-       $(CHIBIOS)/os/various/chprintf.c \
        $(KEEPERSRC)
 
 # C++ sources that can be compiled in ARM or THUMB mode depending on the global
