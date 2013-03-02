@@ -48,7 +48,8 @@ button_thread_fn(void *a)
 	uint16_t repeat = 0;
 	uint16_t wait = 0;
 	uint16_t active, check;
-	
+
+	// sample buttons every 1ms	
 	while (!chThdShouldTerminate()) {
 		chMtxLock(&button_mtx);
 		active = debounce_buttons();

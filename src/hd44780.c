@@ -3,7 +3,8 @@
 #include <stdio.h>
 #include "keeper.h"
 
-// lcd lines. RW is tied low and ignored.
+// lcd lines. RW is tied low and ignored since we're only
+// writing data to the lcd, not reading.
 
 #define LCD_CS_HIGH() palWritePad(GPIOB, GPIOB_LCD_CS, 1)
 #define LCD_CS_LOW() palWritePad(GPIOB, GPIOB_LCD_CS, 0)
@@ -42,6 +43,7 @@ shift_out(uint8_t c)
 void
 lcd_command(uint8_t c)
 {
+	//outf("cmd = 0x%x\r\n", (unsigned)c);
 	LCD_RS_LOW();
 	_delay_us(1);
 	shift_out(c);
@@ -107,55 +109,41 @@ lcd_init(void)
 	LCD_SI_HIGH();
 	LCD_CLK_HIGH();
 
-#if 0
-	_delay_ms(100);
-	lcd_command(LCD_FUNC_8BIT_1LN);
-	_delay_ms(30);
-	lcd_command(LCD_FUNC_8BIT_1LN);
-	_delay_ms(10);
-	lcd_command(LCD_FUNC_8BIT_1LN);
-	_delay_ms(10);
-#endif
-
-	// initialization for DOGM 3-line display, 3.3v
 	_delay_ms(200);
-#if 0
+/*
+From datasheet:
+Initialisation for 5V DOGM 163 3-line, SPI
+Function Set     0000111001 $39 8 bit data length, 2 lines, instruction table 1
+Bias Set         0000011101 $1D BS: 1/4, 3 line LCD
+Power Control    0001010000 $50 booster off, contrast C5, set C4
+Follower Control 0001101100 $6C set voltage follower and gain
+Contrast Set     0001111100 $7C set contrast C3, C2, C1
+Function Set     0000111000 $38 switch back to instruction table 0
+Display ON/OFF   0000001111 $0F display on, cursor on, cursor blink
+Clear Display    0000000001 $01 delete display, cursor at home
+Entry Mode Set   0000000110 $06 cursor auto-increment
+*/
+	// set instruction table 1
 	lcd_command(LCD_FUNC_8BIT_2LN_IS(1));
-	lcd_command(LCD_IS1_BIAS_15B_3LN);
-	lcd_command(LCD_IS1_PWR_BOOST(0b01));
-	lcd_command(LCD_IS1_FOLLOWER_ON(0b110));
+	// set the bias, 1/4, FX bit for 3-line display
+	lcd_command(LCD_IS1_BIAS_14B_FX);
+	// set power mode, 5v mode, no booster, contrast bits C5 and C4 0
+	lcd_command(LCD_IS1_PWR(0));
+	// turn follower on, set gain
+	lcd_command(LCD_IS1_FOLLOWER_ON(0x4));
 	_delay_ms(200);
-	lcd_command(LCD_IS1_SET_CONTRAST(0b0010));
+	// set contrast
+	lcd_command(LCD_IS1_CONTRAST(0xc));
+	_delay_ms(200);
 
-	// back to standard hitachi interface
-	lcd_command(LCD_FUNC_8BIT_2LN);
+	// almost done, go back to hitachi-compat table 0
+	lcd_command(LCD_FUNC_8BIT_2LN_IS(0));
+	// increment cursor
+	lcd_command(LCD_ENTRY_CURSOR_RIGHT);
+	// clear the display
 	lcd_command(LCD_CLEAR);
-	lcd_command(LCD_ENTRY_CURSOR_LEFT);
+	// turn on, no cursor
 	lcd_command(LCD_ON);
-#endif
-
-#if 0
-Function Set     0 0 0 0 1 1 1 0 0 1 $39 8 bit data length, 2 lines, instruction table 1
-Bias Set         0 0 0 0 0 1 1 1 0 1 $1D BS: 1/4, 3 line LCD
-Power Control    0 0 0 1 0 1 0 0 0 0 $50 booster off, contrast C5, set C4
-Follower Control 0 0 0 1 1 0 1 1 0 0 $6C set voltage follower and gain
-Contrast Set     0 0 0 1 1 1 1 1 0 0 $7C set contrast C3, C2, C1
-Function Set     0 0 0 0 1 1 1 0 0 0 $38 switch back to instruction table 0
-Display ON/OFF   0 0 0 0 0 0 1 1 1 1 $0F display on, cursor on, cursor blink
-Clear Display    0 0 0 0 0 0 0 0 0 1 $01 delete display, cursor at home
-                                                                                         Initialisation for 5V
-Entry Mode Set   0 0 0 0 0 0 0 1 1 0 $06 cursor auto-increment
-#endif
-	lcd_command(0x39);
-	lcd_command(0x1D);
-	lcd_command(0x50);
-	lcd_command(0x6c);
-	_delay_ms(200);
-	lcd_command(0x7c);
-	_delay_ms(200);
-	lcd_command(0x38);
-	lcd_command(0x0f);
-	lcd_command(0x01);
 }
 
 // backlight control

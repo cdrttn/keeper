@@ -196,7 +196,6 @@ int main(void)
 	halInit();
 	chSysInit();
 	crypto_init();
-	lcd_init();
 	buttons_init();
 
 	chHeapInit(fast_heap, FAST_HEAP_ADDR, FAST_HEAP_SIZE);
@@ -204,10 +203,9 @@ int main(void)
 	sdStart(&SD2, NULL);
 	palSetPadMode(GPIOA, 2, PAL_MODE_ALTERNATE(7));
 	palSetPadMode(GPIOA, 3, PAL_MODE_ALTERNATE(7));
+	lcd_init();
 
 	setvbuf(stdin, NULL, _IONBF, 0);
-
-	fiprintf(lcd_stdout, "HIHI");
 
 	mmcObjectInit(&MMCD1);
 	mmcStart(&MMCD1, &mmccfg);
@@ -223,6 +221,7 @@ int main(void)
 	palSetPadMode(GPIOC, 10, PAL_MODE_INPUT_PULLUP);
 	palSetPadMode(GPIOC, 11, PAL_MODE_INPUT_PULLUP);
 
+	fiprintf(lcd_stdout, "HIHI");
 	while (TRUE) {
 		console_cmd_loop();
 		//chEvtDispatch(evhndl, chEvtWaitOne(ALL_EVENTS));
