@@ -134,11 +134,17 @@ struct entry {
 	uint8_t pos_cursor;
 	// password mode, hide chars
 	uint8_t passwd:1;
+	// soft cursor mode
+	uint8_t soft_cursor:1;
+	// soft cursor on time
+	uint8_t soft_cursor_on:1;
+	// soft cursor flicker time
+	systime_t soft_cursor_time;
 };
 
 void lcd_entry_init(struct entry *ent, char *buf, size_t size,
 		    uint8_t x, uint8_t y, uint8_t width);
-void lcd_entry_render(const struct entry *ent);
+void lcd_entry_render(struct entry *ent);
 
 void lcd_entry_set_cursor(const struct entry *ent);
 char lcd_entry_getc(struct entry *ent);

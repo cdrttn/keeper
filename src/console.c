@@ -883,7 +883,6 @@ cmd_buttons(const char **argv, int argc)
 	struct entry ent;
 	struct keyboard kb;
 	uint8_t onkb;
-	uint8_t toggle;
 
 	char *buf;
 	char c = 0;
@@ -913,17 +912,18 @@ cmd_buttons(const char **argv, int argc)
 		lcd_keyboard_render(&kb);
 
 		c = 0;
-		do {
-			if (onkb) {
-				toggle ^= 1;
-				if (toggle)
-					lcd_entry_set_cursor(&ent);
-				else
-					lcd_keyboard_set_cursor(&kb);
-			} else
-				lcd_entry_set_cursor(&ent);
-			rv = buttons_wait_timeout(&b, MS2ST(5));
-		} while (rv == RDY_TIMEOUT);
+		if (onkb) {
+			ent.soft_cursor = 1;
+			do {
+				lcd_entry_render(&ent);
+				lcd_keyboard_set_cursor(&kb);
+				rv = buttons_wait_timeout(&b, MS2ST(500));
+			} while (rv == RDY_TIMEOUT);
+		} else {
+			ent.soft_cursor = 0;
+			lcd_entry_set_cursor(&ent);
+			buttons_wait(&b);
+		}
 
 		if (is_button_pressed(&b, BTN_LEFT)) {
 			if (onkb)

@@ -189,6 +189,7 @@ lcd_entry_init(struct entry *ent, char *buf, size_t size,
 	ent->x = x;
 	ent->y = y;
 	ent->width = width;
+	ent->soft_cursor_time = 0;
 }
 
 void
@@ -197,8 +198,11 @@ lcd_entry_set_cursor(const struct entry *ent)
 	lcd_set_cursor(ent->x + ent->pos_cursor, ent->y);
 }
 
+#define SOFT_CURSOR 23
+#define SOFT_CURSOR_FLASH 400
+
 void
-lcd_entry_render(const struct entry *ent)
+lcd_entry_render(struct entry *ent)
 {
 	size_t i;
 	uint8_t col;
@@ -215,8 +219,16 @@ lcd_entry_render(const struct entry *ent)
 	for (; col < ent->width; ++col) {
 		fputc(' ', lcd_stdout);
 	}
-
 	lcd_entry_set_cursor(ent);
+	if (ent->soft_cursor) {
+		systime_t now = chTimeNow();
+		if (now >= ent->soft_cursor_time) {
+			ent->soft_cursor_time = now + MS2ST(SOFT_CURSOR_FLASH);
+			ent->soft_cursor_on ^= 1;
+		}
+		if (ent->soft_cursor_on)
+			fputc(SOFT_CURSOR, lcd_stdout);
+	}
 }
 
 char
