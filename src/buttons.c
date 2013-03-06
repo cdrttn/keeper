@@ -120,8 +120,29 @@ void
 buttons_wait(struct button *b)
 {
 	chMtxLock(&button_mtx);
-	chCondWait(&button_cond);
+	if (!buttons_active)
+		chCondWait(&button_cond);
 	b->active = buttons_active;
 	b->pressed = buttons_debounced;
+	buttons_active = 0;
 	chMtxUnlock();
+}
+
+msg_t
+buttons_wait_timeout(struct button *b, systime_t to)
+{
+	msg_t rv;
+
+	chMtxLock(&button_mtx);
+	if (!buttons_active) {
+		rv = chCondWaitTimeout(&button_cond, to);
+		if (rv == RDY_TIMEOUT)
+			return rv;
+	}
+	b->active = buttons_active;
+	b->pressed = buttons_debounced;
+	buttons_active = 0;
+	chMtxUnlock();
+
+	return rv;
 }

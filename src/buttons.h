@@ -1,6 +1,8 @@
 #ifndef _BUTTONS_H_
 #define _BUTTONS_H_
 
+#include "keeper.h"
+
 struct button {
 	uint16_t active;
 	uint16_t pressed;
@@ -23,5 +25,6 @@ typedef uint16_t (*sample_t)(void);
 void buttons_start_sampling(sample_t sampler);
 void buttons_end_sampling(void);
 void buttons_wait(struct button *b);
+msg_t buttons_wait_timeout(struct button *b, systime_t to);
 
 #endif // _BUTTONS_H_
