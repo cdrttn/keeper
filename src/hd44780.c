@@ -192,6 +192,12 @@ lcd_entry_init(struct entry *ent, char *buf, size_t size,
 }
 
 void
+lcd_entry_set_cursor(const struct entry *ent)
+{
+	lcd_set_cursor(ent->x + ent->pos_cursor, ent->y);
+}
+
+void
 lcd_entry_render(const struct entry *ent)
 {
 	size_t i;
@@ -210,7 +216,13 @@ lcd_entry_render(const struct entry *ent)
 		fputc(' ', lcd_stdout);
 	}
 
-	lcd_set_cursor(ent->x + ent->pos_cursor, ent->y);
+	lcd_entry_set_cursor(ent);
+}
+
+char
+lcd_entry_getc(struct entry *ent)
+{
+	return ent->buf[ent->pos + ent->pos_cursor];
 }
 
 void
@@ -447,4 +459,146 @@ lcd_menu_down(struct menu *menu)
 		return;
 	}
 	menu->row_cursor++;
+}
+
+#define BITMAP_LEN 8
+static const uint8_t bitmap_enter[] = {
+	0b00000001,
+	0b00000001,
+	0b00000101,
+	0b00001001,
+	0b00011111,
+	0b00001000,
+	0b00000100,
+	0b00000000
+};
+
+#define BITMAP_SPACE 2
+static const uint8_t bitmap_space[] = {
+	0b00000000,
+	0b00000000,
+	0b00000000,
+	0b00000000,
+	0b00000000,
+	0b00011011,
+	0b00001010,
+	0b00001110
+};
+
+#define BITMAP_BACKSPACE 8
+
+static const char *charset_special = "~!@#$%^&*()_+=[]{}\\|;:'\",.<>/?";
+static const char *charset_lower =   "abcdefghijklmnopqrstuvwxyz      ";
+static const char *charset_upper =   "ABCDEFGHIJKLMNOPQRSTUVWXYZ      ";
+static const char *charset_num =     "0123456789                      ";
+static const char *charset_action =  "\x01\x02\x08                             ";
+
+void
+lcd_keyboard_load_cgram(void)
+{
+	int i;
+
+	lcd_command(LCD_CGRAM_ADDR(BITMAP_ENTER));
+	for (i = 0; i < BITMAP_LEN; ++i) {
+		lcd_putc(bitmap_enter[i]);
+	}
+	lcd_command(LCD_CGRAM_ADDR(BITMAP_SPACE));
+	for (i = 0; i < BITMAP_LEN; ++i) {
+		lcd_putc(bitmap_space[i]);
+	}
+	lcd_set_cursor(0, 0);
+}
+
+void
+lcd_keyboard_init(struct keyboard *cs, uint8_t x, uint8_t y,
+		  uint8_t width, uint8_t height)
+{
+	cs->x = x;
+	cs->y = y;
+	cs->width = width;
+	cs->height = height;
+	cs->row_start = 0;
+	cs->row_cur = 0;
+
+	lcd_entry_init(&cs->charset[0], (char *)charset_lower,
+		       strlen(charset_lower), 0, 0, width);
+	cs->charset[0].size_current = cs->charset[0].size;
+	lcd_entry_init(&cs->charset[1], (char *)charset_upper,
+		       strlen(charset_upper), 0, 0, width);
+	cs->charset[1].size_current = cs->charset[1].size;
+	lcd_entry_init(&cs->charset[2], (char *)charset_num,
+		       strlen(charset_num), 0, 0, width);
+	cs->charset[2].size_current = cs->charset[2].size;
+	lcd_entry_init(&cs->charset[3], (char *)charset_special,
+		       strlen(charset_special), 0, 0, width);
+	cs->charset[3].size_current = cs->charset[3].size;
+	lcd_entry_init(&cs->charset[4], (char *)charset_action,
+		       strlen(charset_action), 0, 0, width);
+	cs->charset[4].size_current = cs->charset[4].size;
+}
+
+void
+lcd_keyboard_set_cursor(const struct keyboard *kb)
+{
+	lcd_entry_set_cursor(&kb->charset[kb->row_start + kb->row_cur]);
+}
+
+void
+lcd_keyboard_render(struct keyboard *cs)
+{
+	uint8_t i;
+
+	for (i = 0; i < cs->height && cs->row_start + i < MAX_CHARSETS; ++i) {
+		struct entry *ent = &cs->charset[cs->row_start + i];
+		ent->y = cs->y + i;
+		lcd_entry_render(ent);
+	}
+
+	lcd_keyboard_set_cursor(cs);
+}
+
+void
+lcd_keyboard_up(struct keyboard *cs)
+{
+	if (cs->row_cur == 0) {
+		if (cs->row_start)
+			cs->row_start--;
+	} else {
+		cs->row_cur--;
+	}
+}
+
+void
+lcd_keyboard_down(struct keyboard *cs)
+{
+	if (cs->row_cur == cs->height - 1) {
+		if (cs->row_start + cs->height < MAX_CHARSETS)
+			cs->row_start++;
+	} else {
+		cs->row_cur++;
+	}
+}
+
+void
+lcd_keyboard_left(struct keyboard *cs)
+{
+	int i;
+
+	for (i = 0; i < MAX_CHARSETS; ++i)
+		lcd_entry_left(&cs->charset[i]);
+}
+
+void
+lcd_keyboard_right(struct keyboard *cs)
+{
+	int i;
+
+	for (i = 0; i < MAX_CHARSETS; ++i)
+		lcd_entry_right(&cs->charset[i]);
+}
+
+char
+lcd_keyboard_getc(struct keyboard *cs)
+{
+	return lcd_entry_getc(&cs->charset[cs->row_start + cs->row_cur]);
 }

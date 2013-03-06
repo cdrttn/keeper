@@ -97,6 +97,7 @@ CSRC = $(PORTSRC) \
        $(FATFSSRC) \
        $(TESTSRC) \
        $(CHIBIOS)/os/various/syscalls.c \
+       $(CHIBIOS)/os/various/chrtclib.c \
        $(KEEPERSRC)
 
 # C++ sources that can be compiled in ARM or THUMB mode depending on the global

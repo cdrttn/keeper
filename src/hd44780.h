@@ -8,6 +8,7 @@
 
 #define LCD_MAX_X 16
 #define LCD_MAX_Y 3
+#define LCD_MAX_CGRAM 8
 
 #define LCD_LINE_0 0x80
 #define LCD_LINE_1 (0x80 | 0x10)
@@ -48,6 +49,9 @@
 #define LCD_FUNC_8BIT_2LN	(LCD_FUNC | LCD_FUNC_8BIT | LCD_FUNC_2LN)
 #define LCD_FUNC_8BIT_1LN	(LCD_FUNC | LCD_FUNC_8BIT)
 #define LCD_FUNC_8BIT_1LN_5X10	(LCD_FUNC_8BIT_1LN | LCD_FUNC_5X10)
+
+#define LCD_CGRAM_SET		0b01000000
+#define LCD_CGRAM_ADDR(a)	(LCD_CGRAM_SET | ((a) << 3))
 
 // dog-m's ST7036 chipset Extension instruction tables.
 // from these, we can set contrast and more.
@@ -90,6 +94,11 @@
 #define LCD_IS1_CONTRAST_MASK	0b00001111
 #define LCD_IS1_CONTRAST(a) (LCD_IS1_CONTRAST_ | ((a) & LCD_IS1_CONTRAST_MASK))
 
+#define LCD_IS1_ICON_ADDR_	0b01000000
+#define LCD_IS1_ICON_ADDR_MASK	0b00001111
+#define LCD_IS1_ICON_ADDR(a) \
+	(LCD_IS1_ICON_ADDR_ | ((a) & LCD_IS1_ICON_ADDR_MASK))
+
 #define LCD_IS2_DHPS	0b00010000
 #define LCD_IS2_DHPS_UD	0b00001000
 #define LCD_IS2_DHPS_TOP	(LCD_IS2_DHPS | LCD_IS2_DHPS_UD)
@@ -128,9 +137,11 @@ struct entry {
 };
 
 void lcd_entry_init(struct entry *ent, char *buf, size_t size,
-	       uint8_t x, uint8_t y, uint8_t width);
+		    uint8_t x, uint8_t y, uint8_t width);
 void lcd_entry_render(const struct entry *ent);
 
+void lcd_entry_set_cursor(const struct entry *ent);
+char lcd_entry_getc(struct entry *ent);
 void lcd_entry_putc(struct entry *ent, char c);
 void lcd_entry_left(struct entry *ent);
 void lcd_entry_right(struct entry *ent);
@@ -197,5 +208,32 @@ lcd_menu_dirty(struct menu *mnu)
 {
 	mnu->dirty = 1;
 }
+
+struct keyboard {
+	uint8_t x;
+	uint8_t y;
+	uint8_t height;
+	uint8_t width;
+#define MAX_CHARSETS 5
+	struct entry charset[MAX_CHARSETS];
+	// row_charset = row_start + row_cur;
+	uint8_t row_start;
+	uint8_t row_cur;
+};
+
+void lcd_keyboard_load_cgram(void);
+void lcd_keyboard_init(struct keyboard *cs, uint8_t x, uint8_t y,
+		       uint8_t width, uint8_t height);
+void lcd_keyboard_set_cursor(const struct keyboard *kb);
+void lcd_keyboard_render(struct keyboard *cs);
+void lcd_keyboard_up(struct keyboard *cs);
+void lcd_keyboard_down(struct keyboard *cs);
+void lcd_keyboard_left(struct keyboard *cs);
+void lcd_keyboard_right(struct keyboard *cs);
+char lcd_keyboard_getc(struct keyboard *cs);
+
+#define BITMAP_ENTER 1
+#define BITMAP_SPACE 2
+#define BITMAP_BACKSPACE 8
 
 #endif // _HD44780_H_

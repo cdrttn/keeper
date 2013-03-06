@@ -6,6 +6,7 @@
 #include "check.h"
 #include "console.h"
 #include "hal.h"
+#include "chrtclib.h"
 #include "intop.h"
 #include "ff.h"
 #include "diskio.h"

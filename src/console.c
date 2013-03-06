@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <alloca.h>
+#include <time.h>
 
 #include "keeper.h"
 
@@ -45,8 +46,7 @@ getescape(void)
 		if (c == '[') {
 			state = ESC_BRACKET;
 			return ESC_SEQ;
-		}
-		break;
+		} break;
 	case ESC_BRACKET:
 		state = ESC_NONE;
 		switch (c) {
@@ -606,7 +606,6 @@ cmd_lcd(const char **argv, int argc)
 		return;
 	}
 
-
 	if (!strcmp(argv[1], "backlight")) {
 		if (argc < 3 || (b = atoi(argv[2])) > 0xff) {
 			puts("ARGS: lcd backlight 0-255\r");
@@ -620,16 +619,22 @@ cmd_lcd(const char **argv, int argc)
 		}
 	} else if (!strcmp(argv[1], "clear")) {
 		lcd_command(LCD_CLEAR);
-	} else if (!strcmp(argv[1], "puts")) {
+	} else if (!strcmp(argv[1], "setxy")) {
 		uint8_t x, y;
-		if (argc < 5) {
-			puts("ARGS: lcd puts x y str\r");
+		if (argc < 4) {
+			puts("ARGS: lcd setxy x y\r");
 			return;
 		}
 		x = atoi(argv[2]);
 		y = atoi(argv[3]);
 		lcd_set_cursor(x, y);
-		fputs(argv[4], lcd_stdout);
+	} else if (!strcmp(argv[1], "puts")) {
+		int i;
+		for (i = 2; i < argc; ++i) {
+			if (i > 2)
+				fputc(' ', lcd_stdout);
+			fputs(argv[i], lcd_stdout);
+		}
 	} else if (!strcmp(argv[1], "mode")) {
 		if (argc < 3) {
 			puts("ARGS: lcd mode <rcurs|lcurs|rshift|lshift>\r");
@@ -644,6 +649,75 @@ cmd_lcd(const char **argv, int argc)
 		} else if (!strcmp(argv[2], "lshift")) {
 			lcd_command(LCD_ENTRY_SHIFT_LEFT);
 		}
+	} else if (!strcmp(argv[1], "lines")) {
+		if (argc < 3) {
+			puts("ARGS: lcd lines <1top|1bot|2>\r");
+			return;
+		}
+		if (!strcmp(argv[2], "1bot")) {
+			lcd_command(LCD_FUNC_8BIT_1LN_5X10_IS(2));
+			lcd_command(LCD_IS2_DHPS_BOT);
+			lcd_command(LCD_FUNC_8BIT_1LN_5X10);
+		} else if (!strcmp(argv[2], "1top")) {
+			lcd_command(LCD_FUNC_8BIT_1LN_5X10_IS(2));
+			lcd_command(LCD_IS2_DHPS_TOP);
+			lcd_command(LCD_FUNC_8BIT_1LN_5X10);
+		} else
+			lcd_command(LCD_FUNC_8BIT_2LN);
+	} else if (!strcmp(argv[1], "clock")) {
+		struct tm tm;
+		char buf[16];
+
+		lcd_command(LCD_FUNC_8BIT_1LN_5X10_IS(2));
+		lcd_command(LCD_IS2_DHPS_TOP);
+		lcd_command(LCD_FUNC_8BIT_1LN_5X10);
+		lcd_command(LCD_CLEAR);
+
+		while (1) {
+			rtcGetTimeTm(&RTCD1, &tm);
+			strftime(buf, sizeof(buf), "%r", &tm);
+			lcd_set_cursor(2, 0);
+			fiprintf(lcd_stdout, "%s", buf);
+			lcd_set_cursor(2, 1);
+			strftime(buf, sizeof(buf), "%a %b %d", &tm);
+			fiprintf(lcd_stdout, "%s", buf);
+			_delay_ms(100);
+		}
+
+		lcd_command(LCD_FUNC_8BIT_2LN);
+	} else if (!strcmp(argv[1], "raw")) {
+		unsigned c;
+
+		if (argc < 4) {
+			puts("ARGS: lcd raw <c|d> <cmd/data>\r");
+			return;
+		}
+		c = strtoul(argv[3], NULL, 0);
+		if (c > 0xff) {
+			puts("data should be 0x0 - 0xff\r");
+			return;
+		}
+		if (*argv[2] == 'c') {
+			outf("cmd = 0x%02x\r\n", c);
+			lcd_command(c & 0xff);
+		} else {
+			outf("data = 0x%02x\r\n", c);
+			lcd_putc(c & 0xff);
+		}
+	} else if (!strcmp(argv[1], "icon")) {
+		uint8_t addr;
+		// fill icon ram
+		lcd_command(LCD_FUNC_8BIT_2LN_IS(1));
+		lcd_command(LCD_IS1_PWR_ICON(0));
+		for (addr = 0; addr < 0xf; ++addr) {
+			lcd_command(LCD_IS1_ICON_ADDR(addr));
+			lcd_putc(0x1f);
+		}
+		lcd_command(LCD_IS1_ICON_ADDR(0x00));
+		for (addr = 0; addr < 0xff; ++addr) {
+			lcd_putc(0x1f);
+		}
+		lcd_command(LCD_FUNC_8BIT_2LN_IS(0));
 	} else if (!strcmp(argv[1], "entry")) {
 		uint8_t width, start;
 		struct entry ent;
@@ -730,6 +804,40 @@ cmd_lcd(const char **argv, int argc)
 		if (item) {
 			outf("Item: '%s', '%u'\r\n", item->text, item->index);
 		}	
+	} else if (!strcmp(argv[1], "keyboard")) {
+		struct keyboard kb;
+		char g;
+
+		lcd_command(LCD_CLEAR);
+		lcd_command(LCD_ON_CURSOR_BLINK);
+		lcd_keyboard_load_cgram();
+		lcd_keyboard_init(&kb, 0, 1, 16, 2);
+		lcd_keyboard_render(&kb);
+		while ((c = getescape()) != '\r' && c != EOF) {
+			switch (c) {
+			case ESC_SEQ:
+				continue;
+			case ARROW_LT:
+				lcd_keyboard_left(&kb);
+				break;
+			case ARROW_RT:
+				lcd_keyboard_right(&kb);
+				break;
+			case ARROW_UP:
+				lcd_keyboard_up(&kb);
+				break;
+			case ARROW_DN:
+				lcd_keyboard_down(&kb);
+				break;
+			case 'c':
+				g = lcd_keyboard_getc(&kb);
+				lcd_set_cursor(0, 0);
+				fiprintf(lcd_stdout, "'%c' (chr: 0x%02x)", g, g);
+				break;		
+			}
+			lcd_keyboard_render(&kb);
+		}
+		lcd_command(LCD_ON);
 	}
 
 	puts("\r");
@@ -772,43 +880,116 @@ static void
 cmd_buttons(const char **argv, int argc)
 {
 	struct button b;
-	uint8_t x, y;
+	struct entry ent;
+	struct keyboard kb;
+	uint8_t onkb;
+	uint8_t toggle;
+
+	char *buf;
+	char c = 0;
+	msg_t rv;
 
 	(void)argc;
 	(void)argv;
 
+#define BUFSZ 128
+	buf = fast_mallocz(BUFSZ);
+
 	buttons_start_sampling(buttons_sample);
 	lcd_command(LCD_ON_CURSOR_BLINK);
 
-// XXX move these macros to a central location
-#define LCD_MAX_Y 3
-#define LCD_MAX_X 16
-	x = y = 0;
-	lcd_set_cursor(x, y);
+	lcd_keyboard_load_cgram();
+	lcd_set_cursor(0, 0);
+	fputc('[', lcd_stdout);
+	lcd_set_cursor(15, 0);
+	fputc(']', lcd_stdout);
+	lcd_entry_init(&ent, buf, BUFSZ-1, 1, 0, 14);
+	lcd_keyboard_init(&kb, 0, 1, 16, 2);
+
+	onkb = 0;
 
 	do {
-		buttons_wait(&b);
+		lcd_entry_render(&ent);
+		lcd_keyboard_render(&kb);
+
+		c = 0;
+		do {
+			if (onkb) {
+				toggle ^= 1;
+				if (toggle)
+					lcd_entry_set_cursor(&ent);
+				else
+					lcd_keyboard_set_cursor(&kb);
+			} else
+				lcd_entry_set_cursor(&ent);
+			rv = buttons_wait_timeout(&b, MS2ST(5));
+		} while (rv == RDY_TIMEOUT);
+
 		if (is_button_pressed(&b, BTN_LEFT)) {
-			if (x > 0)
-				x--;
+			if (onkb)
+				lcd_keyboard_left(&kb);
+			else
+				lcd_entry_left(&ent);
 		}
 		if (is_button_pressed(&b, BTN_RIGHT)) {
-			if (x + 1 < LCD_MAX_X)
-				x++;
+			if (onkb)
+				lcd_keyboard_right(&kb);
+			else
+				lcd_entry_right(&ent);
 		}
 		if (is_button_pressed(&b, BTN_UP)) {
-			if (y > 0)
-				y--;
+			if (onkb && !kb.row_start && !kb.row_cur) {
+				onkb = 0;
+			} else if (onkb) {
+				lcd_keyboard_up(&kb);
+			}
 		}
 		if (is_button_pressed(&b, BTN_DOWN)) {
-			if (y + 1 < LCD_MAX_Y)
-				y++;
+			if (!onkb) {
+				onkb = 1;
+			} else {
+				lcd_keyboard_down(&kb);
+			}
 		}
-		lcd_set_cursor(x, y);
-	} while (!is_button_pressed(&b, BTN_ENTER));
+		if (onkb && is_button_pressed(&b, BTN_ENTER)) {
+			c = lcd_keyboard_getc(&kb);
+			outf("c = '%c' (0x%02x)\r\n", c, c);
+			switch (c) {
+			case 0:
+			case BITMAP_ENTER:
+				break;
+			case BITMAP_SPACE:
+				lcd_entry_putc(&ent, ' ');
+				break;
+			case BITMAP_BACKSPACE:
+				lcd_entry_backspace(&ent);
+				break;
+			default:
+				lcd_entry_putc(&ent, c);
+				break;
+			}
+		}
+	} while (c != BITMAP_ENTER);
 
 	buttons_end_sampling();
 	lcd_command(LCD_ON);
+	buf[ent.size_current] = 0;
+	outf("entered = '%s'\r\n", buf);
+	fast_free(buf);
+}
+
+static void
+cmd_rtc(const char **argv, int argc)
+{
+	struct tm t;
+
+	if (argc >= 2) {
+		time_t set = strtoul(argv[1], NULL, 0);
+		rtcSetTimeUnixSec(&RTCD1, set);
+	}
+
+	rtcGetTimeTm(&RTCD1, &t);
+	outf("Time: %s\r\n", asctime(&t));
 }
 
 static void cmd_help(const char **argv, int argc);
@@ -835,6 +1016,7 @@ static const struct console_cmd command_list[] = {
 	{cmd_vfatfs, "vfatfs", "test vfatfs subsystem"},
 	{cmd_lcd, "lcd", "test lcd"},
 	{cmd_buttons, "buttons", "test buttons"},
+	{cmd_rtc, "rtc", "test rtc"},
 	{NULL}
 };
 
