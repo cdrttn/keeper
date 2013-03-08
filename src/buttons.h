@@ -9,15 +9,27 @@ struct button {
 };
 
 static inline bool_t
-is_button_pressed(struct button *all, uint16_t b)
+is_active_pressed(struct button *all, uint16_t b)
 {
 	return (all->active & all->pressed) & b;
 }
 
 static inline bool_t
-is_button_released(struct button *all, uint16_t b)
+is_active_released(struct button *all, uint16_t b)
 {
 	return (all->active & ~all->pressed) & b;
+}
+
+static inline bool_t
+is_pressed(struct button *all, uint16_t b)
+{
+	return all->pressed & b;
+}
+
+static inline bool_t
+is_released(struct button *all, uint16_t b)
+{
+	return (~all->pressed) & b;
 }
 
 void buttons_init(void);

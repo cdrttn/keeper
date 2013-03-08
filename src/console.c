@@ -925,33 +925,38 @@ cmd_buttons(const char **argv, int argc)
 			buttons_wait(&b);
 		}
 
-		if (is_button_pressed(&b, BTN_LEFT)) {
+		outf("active 0x%04x, pressed 0x%04x\r\n", b.active, b.pressed);
+		if (is_active_pressed(&b, BTN_LEFT)) {
 			if (onkb)
 				lcd_keyboard_left(&kb);
+			else if (is_pressed(&b, BTN_ENTER))
+				lcd_entry_backspace(&ent);
 			else
 				lcd_entry_left(&ent);
 		}
-		if (is_button_pressed(&b, BTN_RIGHT)) {
+		if (is_active_pressed(&b, BTN_RIGHT)) {
 			if (onkb)
 				lcd_keyboard_right(&kb);
+			else if (is_pressed(&b, BTN_ENTER))
+				lcd_entry_putc(&ent, ' ');
 			else
 				lcd_entry_right(&ent);
 		}
-		if (is_button_pressed(&b, BTN_UP)) {
+		if (is_active_pressed(&b, BTN_UP)) {
 			if (onkb && !kb.row_start && !kb.row_cur) {
 				onkb = 0;
 			} else if (onkb) {
 				lcd_keyboard_up(&kb);
 			}
 		}
-		if (is_button_pressed(&b, BTN_DOWN)) {
+		if (is_active_pressed(&b, BTN_DOWN)) {
 			if (!onkb) {
 				onkb = 1;
 			} else {
 				lcd_keyboard_down(&kb);
 			}
 		}
-		if (onkb && is_button_pressed(&b, BTN_ENTER)) {
+		if (onkb && is_active_pressed(&b, BTN_ENTER)) {
 			c = lcd_keyboard_getc(&kb);
 			outf("c = '%c' (0x%02x)\r\n", c, c);
 			switch (c) {
