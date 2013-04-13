@@ -1,0 +1,150 @@
+Cmp-Mod V01 Created by CvPcb (2013-03-10 BZR 3992)-stable date = 3/18/2013 1:43:14 PM
+
+BeginCmp
+TimeStamp = /514595C2;
+Reference = BT1;
+ValeurCmp = CR2032;
+IdModule  = CR2032H;
+EndCmp
+
+BeginCmp
+TimeStamp = /51458FEA;
+Reference = C1;
+ValeurCmp = 2.2uF;
+IdModule  = SM0805;
+EndCmp
+
+BeginCmp
+TimeStamp = /51456EC9;
+Reference = C2;
+ValeurCmp = 22pF;
+IdModule  = SM0805;
+EndCmp
+
+BeginCmp
+TimeStamp = /51456EB0;
+Reference = C3;
+ValeurCmp = 22pF;
+IdModule  = SM0805;
+EndCmp
+
+BeginCmp
+TimeStamp = /51456FD4;
+Reference = C4;
+ValeurCmp = 22pF;
+IdModule  = SM0805;
+EndCmp
+
+BeginCmp
+TimeStamp = /51456FC5;
+Reference = C5;
+ValeurCmp = 22pF;
+IdModule  = SM0805;
+EndCmp
+
+BeginCmp
+TimeStamp = /51458FE4;
+Reference = C6;
+ValeurCmp = 100nF;
+IdModule  = SM0805;
+EndCmp
+
+BeginCmp
+TimeStamp = /51458FDE;
+Reference = C7;
+ValeurCmp = 100nF;
+IdModule  = SM0805;
+EndCmp
+
+BeginCmp
+TimeStamp = /51458FC0;
+Reference = C8;
+ValeurCmp = 100nF;
+IdModule  = SM0805;
+EndCmp
+
+BeginCmp
+TimeStamp = /51458FA5;
+Reference = C9;
+ValeurCmp = 100nF;
+IdModule  = SM0805;
+EndCmp
+
+BeginCmp
+TimeStamp = /514575B5;
+Reference = C10;
+ValeurCmp = 2.2uF;
+IdModule  = SM0805;
+EndCmp
+
+BeginCmp
+TimeStamp = /51458F58;
+Reference = C11;
+ValeurCmp = 100nF;
+IdModule  = SM0805;
+EndCmp
+
+BeginCmp
+TimeStamp = /51457583;
+Reference = C12;
+ValeurCmp = 2.2uF;
+IdModule  = SM0805;
+EndCmp
+
+BeginCmp
+TimeStamp = /51477231;
+Reference = C13;
+ValeurCmp = 100nF;
+IdModule  = ;
+EndCmp
+
+BeginCmp
+TimeStamp = /51456C1C;
+Reference = CON1;
+ValeurCmp = USB-MINI-B;
+IdModule  = USB_MINI_B;
+EndCmp
+
+BeginCmp
+TimeStamp = /514585AD;
+Reference = IC1;
+ValeurCmp = STM32F415RG;
+IdModule  = LQFP64;
+EndCmp
+
+BeginCmp
+TimeStamp = /51477213;
+Reference = R1;
+ValeurCmp = 220;
+IdModule  = ;
+EndCmp
+
+BeginCmp
+TimeStamp = /514771FF;
+Reference = R2;
+ValeurCmp = 10k;
+IdModule  = ;
+EndCmp
+
+BeginCmp
+TimeStamp = /5147728C;
+Reference = SW1;
+ValeurCmp = SW_PUSH;
+IdModule  = SW_PUSH_SMD;
+EndCmp
+
+BeginCmp
+TimeStamp = /51456DA9;
+Reference = X1;
+ValeurCmp = 32.768KHz;
+IdModule  = SM2010;
+EndCmp
+
+BeginCmp
+TimeStamp = /51456D9A;
+Reference = X2;
+ValeurCmp = 16MHz;
+IdModule  = SM2010;
+EndCmp
+
+EndListe
