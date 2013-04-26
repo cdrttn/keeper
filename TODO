@@ -1,0 +1,7 @@
+	* Finish circuit schematic and PCB layout for Keeper dev board
+	* Get a basic UI with the character display 
+	* Gain LUKS compliance
+	* Work on USB connectivity
+	  - HID for password typing
+	  - Mass storage for LUKS SD cards
+	* Experiment with touch screens, example: http://www.lcd-module.com/products/dog.html
