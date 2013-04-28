@@ -1,6 +1,7 @@
 Keeper
+======
 
-Experimental password storage device
+Experimental password storage device and LUKS SD card reader
 
 
 For hardware:
