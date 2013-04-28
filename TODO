@@ -1,4 +1,5 @@
 	* Finish circuit schematic and PCB layout for Keeper dev board
+	* Fix code to match circuit schematic
 	* Get a basic UI working with the character display & keypad
 	* Work on ESSIV and XTS mode for safer disk encryption
 	* Gain LUKS compliance for disk images and SD cards
