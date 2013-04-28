@@ -1,10 +1,16 @@
-	* Finish circuit schematic and PCB layout for Keeper dev board
-	* Fix code to match circuit schematic
-	* Get a basic UI working with the character display & keypad
-	* Work on ESSIV and XTS mode for safer disk encryption
-	* Gain LUKS compliance for disk images and SD cards
-	* Work on USB connectivity
-	  - HID for password typing
-	  - Mass storage for LUKS SD cards & images
-	* Practical performance tests on STM32 crypto
-	* Experiment with touch screens, example: http://www.lcd-module.com/products/dog.html
+Legend:
+[ ]	unfinished
+[!]	in progress
+[*]	finished
+
+
+[!]	* Finish circuit schematic and PCB layout for Keeper dev board
+[ ]	* Fix code to match circuit schematic
+[ ]	* Get a basic UI working with the character display & keypad
+[ ]	* Work on ESSIV and XTS mode for safer disk encryption
+[ ]	* Gain LUKS compliance for disk images and SD cards
+[ ]	* Work on USB connectivity
+[ ]	  - HID for password typing
+[ ]	  - Mass storage for LUKS SD cards & images
+[ ]	* Practical performance tests on STM32 crypto
+[ ]	* Experiment with touch screens, example: http://www.lcd-module.com/products/dog.html
