@@ -22,4 +22,12 @@ To build firmware:
 Currently, there's only a serial console for testing various modules and
 hardware features.
 
+Further reading:
+
+docs/cryptfile.dia - details about the preliminary encrypted file structure
+
+docs/dbfile.dia    - password & account database file structure
+
+Both files require Gnome Dia for viewing.
+
 cd.rattan@gmail.com
