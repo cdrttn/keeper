@@ -14,3 +14,4 @@ Legend:
 [ ]	  - Mass storage for LUKS SD cards & images
 [ ]	* Practical performance tests on STM32 crypto
 [ ]	* Experiment with touch screens, example: http://www.lcd-module.com/products/dog.html
+[ ]	* Consider adding a USB 2.0 HS PHY chip to design
